@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>앱 빌드 · 배포 명세서</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Apple SD Gothic Neo", "Helvetica Neue", -apple-system, sans-serif;
+    color: #1a1a2e; font-size: 11pt; line-height: 1.65; margin: 0;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  h1, h2, h3 { line-height: 1.3; }
+  h2 {
+    font-size: 16pt; color: #0b3d91; border-bottom: 3px solid #208AEF;
+    padding-bottom: 6px; margin-top: 34px; page-break-after: avoid;
+  }
+  h3 { font-size: 12.5pt; color: #0b3d91; margin-top: 22px; page-break-after: avoid; }
+  p { margin: 8px 0; }
+  code {
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9.5pt;
+    background: #eef2f7; padding: 1px 5px; border-radius: 4px; color: #b1265e;
+  }
+  pre {
+    background: #0f1f3d; color: #e6edf7; padding: 12px 14px; border-radius: 8px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9pt;
+    line-height: 1.5; overflow-x: auto; page-break-inside: avoid; margin: 10px 0;
+  }
+  pre code { background: none; color: inherit; padding: 0; }
+  pre .c { color: #7f9cc4; } /* comment */
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10pt; page-break-inside: avoid; }
+  th, td { border: 1px solid #cdd6e4; padding: 7px 9px; text-align: left; vertical-align: top; }
+  th { background: #e8f1fd; color: #0b3d91; }
+  .callout { border-radius: 8px; padding: 11px 14px; margin: 12px 0; font-size: 10pt; page-break-inside: avoid; }
+  .info  { background: #e8f4ff; border-left: 5px solid #208AEF; }
+  .warn  { background: #fff4e5; border-left: 5px solid #f59e0b; }
+  .danger{ background: #ffeaea; border-left: 5px solid #e03131; }
+  .ok    { background: #e9f9 ed; border-left: 5px solid #2f9e44; background:#e9f9ed; }
+  .tag { display:inline-block; font-size:8.5pt; font-weight:700; padding:2px 8px; border-radius:20px; color:#fff; }
+  .tag-ios { background:#000; } .tag-aos { background:#3ddc84; color:#063; } .tag-both{ background:#208AEF; }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .cover { text-align:center; padding-top: 120px; page-break-after: always; }
+  .cover h1 { font-size: 30pt; color:#0b3d91; margin-bottom: 4px; }
+  .cover .sub { font-size: 13pt; color:#52607a; margin-top: 8px; }
+  .cover .meta { margin-top: 60px; font-size: 10.5pt; color:#52607a; }
+  .cover .badge { display:inline-block; margin-top:30px; background:#208AEF; color:#fff;
+    padding:8px 20px; border-radius:30px; font-size:11pt; font-weight:700; }
+  .toc { page-break-after: always; }
+  .toc ol { font-size: 11.5pt; line-height: 2.1; }
+  .step { background:#f5f8fc; border:1px solid #dce5f1; border-radius:8px; padding:4px 14px; margin:10px 0; page-break-inside: avoid; }
+  .kbd { font-family:"SF Mono",Menlo,monospace; background:#1a1a2e; color:#fff; padding:1px 6px; border-radius:4px; font-size:9pt; }
+  hr { border:none; border-top:1px solid #dce5f1; margin: 18px 0; }
+  .small { font-size: 9.5pt; color:#52607a; }
+</style>
+</head>
+<body>
+
+<!-- ===================== COVER ===================== -->
+<div class="cover">
+  <h1>앱 빌드 · 배포 명세서</h1>
+  <div class="sub">shoppinglog.store — Expo (React Native) WebView + 푸시 알림 앱</div>
+  <div class="badge">iOS TestFlight &nbsp;·&nbsp; Android Play Console &nbsp;·&nbsp; EAS Build</div>
+  <div class="meta">
+    대상: 빌드·스토어 배포 담당자<br>
+    프론트엔드(WebView + 푸시 알림 프론트)는 구현 완료 상태입니다.<br>
+    이 문서대로 <b>본인 소유 계정</b>으로 빌드 → 테스트 → 배포를 진행하세요.
+  </div>
+</div>
+
+<!-- ===================== TOC ===================== -->
+<div class="toc">
+  <h2 style="margin-top:0">목차</h2>
+  <ol>
+    <li>이 프로젝트 개요 &amp; 담당 범위</li>
+    <li>준비물 &amp; 사전 설치</li>
+    <li>계정 3종 · 비용 · 본인인증 (가장 중요)</li>
+    <li>프로젝트를 내 Expo 계정에 연결 (eas init)</li>
+    <li>푸시 자격증명 설정 (iOS APNs / Android FCM)</li>
+    <li>EAS 빌드 — APK / AAB / 개발빌드</li>
+    <li>iOS — App Store Connect &amp; TestFlight</li>
+    <li>Android — Play Console 내부 테스트</li>
+    <li>푸시 알림 실제 동작 테스트</li>
+    <li>자주 막히는 부분 (트러블슈팅)</li>
+    <li>명령어 치트시트</li>
+  </ol>
+</div>
+
+<!-- ===================== 1 ===================== -->
+<h2>1. 이 프로젝트 개요 &amp; 담당 범위</h2>
+<p>이 앱은 <b>Expo (React Native) 기반 WebView 앱</b>입니다. <code>https://shoppinglog.store</code> 를 앱 안에 풀스크린으로 띄우고, Expo 푸시 알림을 받습니다.</p>
+
+<table>
+  <tr><th>구분</th><th>내용</th><th>상태</th></tr>
+  <tr><td>프론트엔드</td><td>WebView 화면, 푸시 권한·토큰 발급, 알림 탭 시 이동 등 <b>프론트 코드</b></td><td>✅ 완료</td></tr>
+  <tr><td>백엔드</td><td>토큰 저장 + Expo Push API 발송 — 별도 <code>docs/BACKEND.md</code> 참고</td><td>백엔드 담당</td></tr>
+  <tr><td>빌드·배포</td><td>EAS 빌드, 스토어 등록, 테스트 (<b>이 문서</b>)</td><td>👉 담당자 진행</td></tr>
+</table>
+
+<div class="callout danger">
+  <b>중요 — 계정 소유권.</b> 이 프로젝트는 <b>아직 어떤 Expo 계정에도 연결돼 있지 않습니다</b>(<code>app.json</code> 에 projectId 없음).
+  반드시 <b>본인(배포 담당) 소유의 Expo / Apple / Google 계정</b>으로 진행하세요. 아래 4번에서 <code>eas init</code> 을 본인 계정으로 실행하면 그때 연결됩니다.
+</div>
+
+<h3>프로젝트 구조 (핵심 파일)</h3>
+<table>
+  <tr><th>파일</th><th>역할</th></tr>
+  <tr><td><code>app.json</code></td><td>앱 이름/번들ID/플러그인 설정. 번들ID = <code>store.shoppinglog.app</code></td></tr>
+  <tr><td><code>eas.json</code></td><td>EAS 빌드 프로필 (development / preview=APK / production=AAB)</td></tr>
+  <tr><td><code>src/app/index.tsx</code></td><td>WebView 화면 + 알림 탭 처리</td></tr>
+  <tr><td><code>src/lib/notifications.ts</code></td><td>푸시 권한·토큰·채널 설정</td></tr>
+  <tr><td><code>docs/BACKEND.md</code></td><td>백엔드 담당자용 연동 문서</td></tr>
+</table>
+
+<!-- ===================== 2 ===================== -->
+<h2>2. 준비물 &amp; 사전 설치</h2>
+<table>
+  <tr><th>항목</th><th>설명</th></tr>
+  <tr><td>Node.js 20+</td><td><code>node -v</code> 로 확인. 없으면 nodejs.org 에서 설치</td></tr>
+  <tr><td>EAS CLI</td><td><code>npm install -g eas-cli</code></td></tr>
+  <tr><td>Expo 계정</td><td>무료. <a>expo.dev</a> 가입</td></tr>
+  <tr><td>실제 기기</td><td>푸시 토큰은 <b>실기기</b>에서만 발급됨 (시뮬레이터 불가)</td></tr>
+  <tr><td><span class="tag tag-ios">iOS</span> Mac</td><td>iOS 빌드 자체는 EAS 클라우드에서 됨. 단, TestFlight 관리는 어디서나 가능</td></tr>
+</table>
+<pre><code><span class="c"># 의존성 설치 + 프로젝트 정상 동작 점검</span>
+npm install
+npx tsc --noEmit     <span class="c"># 타입 체크 (통과해야 함)</span>
+npx expo lint        <span class="c"># 린트 (통과해야 함)</span>
+npx expo start       <span class="c"># 개발 중 미리보기 (Expo Go 는 푸시 미지원)</span></code></pre>
+
+<!-- ===================== 3 ===================== -->
+<h2>3. 계정 3종 · 비용 · 본인인증 <span class="small">(가장 중요)</span></h2>
+<p>실제 기기에 앱을 설치하고 푸시를 받으려면 아래 3개 계정이 필요합니다. <b>비용과 본인인증 절차</b>를 먼저 파악하세요. (인증 승인까지 시간이 걸려서 가장 먼저 시작해야 함)</p>
+
+<table>
+  <tr><th>계정</th><th>비용</th><th>본인/사업자 인증</th><th>승인 소요</th></tr>
+  <tr>
+    <td><b>Expo</b></td>
+    <td>무료</td>
+    <td>이메일 가입만</td>
+    <td>즉시</td>
+  </tr>
+  <tr>
+    <td><b>Apple Developer Program</b><br><span class="tag tag-ios">iOS</span></td>
+    <td><b>$99 / 년</b></td>
+    <td>Apple ID + 2단계 인증, 결제. 법인은 <b>D-U-N-S 번호</b> 필요</td>
+    <td>개인 보통 24~48시간</td>
+  </tr>
+  <tr>
+    <td><b>Google Play Console</b><br><span class="tag tag-aos">Android</span></td>
+    <td><b>$25 (1회, 평생)</b></td>
+    <td>Google 계정 + <b>신분증 본인확인</b>, 주소/전화. 조직은 사업자 정보 + D-U-N-S</td>
+    <td>본인확인 며칠 걸릴 수 있음</td>
+  </tr>
+</table>
+
+<div class="callout warn">
+  <b>2024년 이후 신규 정책.</b> Google Play 신규 개인 개발자 계정은 <b>신분증 기반 본인확인</b>이 필수이고,
+  일부는 <b>출시 전 테스터 확보 요건</b>(예: 비공개 테스트 일정 기간)이 요구될 수 있습니다.
+  Apple/Google 모두 <b>주소지·신분증(또는 사업자등록)</b> 인증이 필요하니, 결제 수단과 신분증을 미리 준비하세요.
+</div>
+
+<h3>법인 vs 개인</h3>
+<ul>
+  <li><b>개인 개발자</b>로 등록: 절차 간단, 신분증 본인확인. 스토어에 개인 실명/닉네임 노출.</li>
+  <li><b>법인(사업자)</b>로 등록: <b>D-U-N-S 번호</b>(무료 발급, 시간 소요)와 사업자 정보 필요. 스토어에 회사명 노출.</li>
+</ul>
+<p class="small">→ 어느 명의로 낼지(개인/법인)는 발주처와 먼저 합의하세요. 한 번 정하면 변경이 번거롭습니다.</p>
+
+<!-- ===================== 4 ===================== -->
+<h2>4. 프로젝트를 내 Expo 계정에 연결</h2>
+<div class="step"><b>STEP 1</b> — 본인 Expo 계정으로 로그인</div>
+<pre><code>eas login            <span class="c"># 본인 Expo 계정 이메일/비밀번호</span>
+eas whoami           <span class="c"># 로그인된 계정 확인</span></code></pre>
+
+<div class="step"><b>STEP 2</b> — 프로젝트 연결 (projectId 자동 주입)</div>
+<pre><code>eas init             <span class="c"># 본인 계정에 새 프로젝트 생성 + app.json 에 projectId 기록</span></code></pre>
+<div class="callout info">
+  <code>eas init</code> 을 실행하면 <code>app.json</code> 의 <code>extra.eas.projectId</code> 와 <code>owner</code> 가 <b>본인 계정 기준</b>으로 채워집니다.
+  이때부터 푸시 토큰 발급(<code>getExpoPushTokenAsync</code>)이 정상 동작합니다.
+</div>
+
+<div class="step"><b>STEP 3</b> — 앱 식별자 확인/변경 (선택)</div>
+<p><code>app.json</code> 에 이미 설정돼 있습니다. 다른 값으로 출시하려면 여기서 바꾸세요.</p>
+<pre><code>"ios":     { "bundleIdentifier": "store.shoppinglog.app" }
+"android": { "package":          "store.shoppinglog.app" }</code></pre>
+<p class="small">⚠️ 한 번 스토어에 올린 식별자는 <b>변경 불가</b>입니다. 출시 전 확정하세요.</p>
+
+<!-- ===================== 5 ===================== -->
+<h2>5. 푸시 자격증명 설정</h2>
+<p>Expo Push 서비스가 Apple/Google 의 푸시 게이트웨이로 알림을 전달하려면 자격증명이 필요합니다. <b>대부분 EAS 가 자동 처리</b>하지만 Android FCM 은 수동 작업이 한 단계 있습니다.</p>
+
+<h3><span class="tag tag-ios">iOS</span> APNs 키</h3>
+<p>EAS 빌드 시 <b>자동 생성·관리</b>됩니다. <code>eas build</code> 중 "푸시 키를 만들까요?" 물으면 <span class="kbd">Yes</span>. 별도 수동 작업 거의 없음. (Apple Developer Program 가입은 필수)</p>
+
+<h3><span class="tag tag-aos">Android</span> FCM (Firebase) — 수동 1회</h3>
+<div class="step"><b>1</b> — <code>console.firebase.google.com</code> 에서 프로젝트 생성</div>
+<div class="step"><b>2</b> — Android 앱 추가, 패키지명 <code>store.shoppinglog.app</code> 입력</div>
+<div class="step"><b>3</b> — 프로젝트 설정 → 서비스 계정 → <b>새 비공개 키 생성</b> → JSON 파일 다운로드</div>
+<div class="step"><b>4</b> — 그 JSON 을 EAS 에 등록 (FCM V1)</div>
+<pre><code>eas credentials        <span class="c"># Android → Google Service Account → 위 JSON 업로드</span></code></pre>
+<div class="callout info">
+  최신 Android 푸시는 <b>FCM V1 (서비스 계정 JSON)</b> 방식입니다. 예전 "서버 키" 방식은 폐기됨.
+  이 JSON 을 EAS 에 등록해야 백엔드가 보낸 푸시가 안드로이드 기기까지 도착합니다.
+</div>
+
+<!-- ===================== 6 ===================== -->
+<h2>6. EAS 빌드 — APK / AAB / 개발빌드</h2>
+<p><code>eas.json</code> 에 3개 프로필이 준비돼 있습니다.</p>
+<table>
+  <tr><th>프로필</th><th>용도</th><th>Android 결과물</th><th>iOS 결과물</th></tr>
+  <tr><td><code>preview</code></td><td>빠른 실기기 테스트 (사이드로드)</td><td><b>APK</b></td><td>내부배포(.ipa)</td></tr>
+  <tr><td><code>production</code></td><td>스토어 제출용</td><td><b>AAB</b> (.aab)</td><td>App Store(.ipa)</td></tr>
+  <tr><td><code>development</code></td><td>dev client 디버깅(선택)</td><td>debug</td><td>debug</td></tr>
+</table>
+
+<h3>빌드 명령어</h3>
+<pre><code><span class="c"># 안드로이드 테스트용 APK (기기에 바로 설치 가능)</span>
+eas build --profile preview --platform android
+
+<span class="c"># 스토어 제출용 — 안드로이드 AAB</span>
+eas build --profile production --platform android
+
+<span class="c"># 스토어 제출용 — iOS</span>
+eas build --profile production --platform ios
+
+<span class="c"># 둘 다 한 번에</span>
+eas build --profile production --platform all</code></pre>
+<div class="callout info">
+  빌드는 <b>EAS 클라우드</b>에서 진행됩니다. 끝나면 터미널에 <b>다운로드 링크</b>가 뜨고,
+  <code>expo.dev</code> → 프로젝트 → Builds 에서도 받을 수 있습니다. AAB 는 이 링크에서 받아 Play Console 에 올립니다.
+</div>
+
+<!-- ===================== 7 ===================== -->
+<h2>7. <span class="tag tag-ios">iOS</span> App Store Connect &amp; TestFlight</h2>
+
+<div class="step"><b>STEP 1</b> — App Store Connect 에 앱 생성</div>
+<p><code>appstoreconnect.apple.com</code> → 나의 앱 → <b>＋</b> → 신규 앱. 번들ID <code>store.shoppinglog.app</code> 선택, 앱 이름 입력.</p>
+
+<div class="step"><b>STEP 2</b> — 빌드 업로드 (자동)</div>
+<pre><code>eas submit --profile production --platform ios</code></pre>
+<p>또는 <code>eas build</code> 직후 "스토어에 제출할까요?" 에 <span class="kbd">Yes</span>. Apple 로그인 후 자동 업로드됩니다.</p>
+
+<div class="step"><b>STEP 3</b> — TestFlight 에서 테스트</div>
+<ul>
+  <li>App Store Connect → <b>TestFlight</b> 탭. 업로드된 빌드가 "처리 중" → 몇 분 후 테스트 가능.</li>
+  <li><b>내부 테스터</b>: 같은 팀 멤버(최대 100명) — 심사 없이 즉시 설치.</li>
+  <li><b>외부 테스터</b>: 이메일 초대/공개 링크(최대 1만명) — 첫 빌드는 간단한 베타 심사 필요.</li>
+  <li>테스터는 <b>TestFlight 앱</b>(앱스토어에서 설치) 으로 초대 수락 후 설치.</li>
+</ul>
+<div class="callout warn">
+  TestFlight 빌드는 보통 <b>90일</b> 후 만료됩니다. 또 빌드마다 <b>수출 규정(암호화) 질문</b>에 답해야 업로드가 끝납니다(대개 "아니오").
+</div>
+
+<!-- ===================== 8 ===================== -->
+<h2>8. <span class="tag tag-aos">Android</span> Play Console 내부 테스트</h2>
+
+<div class="step"><b>STEP 1</b> — 앱 생성</div>
+<p><code>play.google.com/console</code> → 앱 만들기. 앱 이름/언어/유형(앱) 설정.</p>
+
+<div class="step"><b>STEP 2</b> — AAB 업로드</div>
+<p>방법 A — 자동 제출:</p>
+<pre><code>eas submit --profile production --platform android</code></pre>
+<p class="small">(처음엔 Google 서비스 계정 키 연동이 필요. 수동이 더 쉬우면 방법 B)</p>
+<p>방법 B — 수동 업로드: 6번에서 받은 <code>.aab</code> 파일을 Play Console <b>테스트 → 내부 테스트 → 새 버전 만들기</b> 에서 업로드.</p>
+
+<div class="step"><b>STEP 3</b> — 내부 테스트 트랙으로 배포</div>
+<ul>
+  <li><b>내부 테스트</b> 트랙 권장: 최대 100명, 검토 없이 즉시.</li>
+  <li>테스터 목록(이메일) 등록 → 생성된 <b>참여 링크(opt-in URL)</b> 를 테스터에게 전달.</li>
+  <li>테스터가 링크로 옵트인 후 Play 스토어에서 설치.</li>
+</ul>
+<div class="callout warn">
+  <b>앱 서명.</b> Play 콘솔의 <b>Play 앱 서명</b>을 사용하면 EAS 가 만든 업로드 키로 올리고 구글이 최종 서명합니다. (권장, 기본값) 키를 잃어버려도 복구 가능.
+</div>
+<div class="callout danger">
+  <b>신규 개인 계정 출시 요건.</b> 2023~2024 이후 가입한 <b>개인</b> 개발자 계정은, 프로덕션(정식) 출시 전
+  <b>비공개 테스트(테스터 12명 이상 · 14일 지속)</b> 를 요구받을 수 있습니다. <b>내부 테스트는 영향 없음</b>이니
+  먼저 내부 테스트로 동작을 검증하세요.
+</div>
+
+<!-- ===================== 9 ===================== -->
+<h2>9. 푸시 알림 실제 동작 테스트</h2>
+<p>빌드된 앱(또는 dev build)을 <b>실기기</b>에 설치한 뒤:</p>
+<div class="step"><b>1</b> — 앱 첫 실행 → 알림 권한 허용</div>
+<div class="step"><b>2</b> — 푸시 토큰 확인</div>
+<p>토큰은 코드에서 발급되어 (백엔드 연동 전이면) <b>콘솔에 출력</b>됩니다. <code>npx expo start</code> 로 dev 실행 시 또는 기기 로그에서 <code>ExponentPushToken[...]</code> 확인.</p>
+<div class="step"><b>3</b> — 테스트 발송</div>
+<p>방법 A — <b>Expo Push Tool</b>: <code>expo.dev/notifications</code> 에 토큰·제목·본문 넣고 전송.</p>
+<p>방법 B — curl:</p>
+<pre><code>curl -X POST https://exp.host/--/api/v2/push/send \
+  -H "Content-Type: application/json" \
+  -d '[{
+    "to": "ExponentPushToken[xxxx]",
+    "title": "테스트",
+    "body": "푸시 도착 확인",
+    "data": { "url": "https://shoppinglog.store/orders" }
+  }]'</code></pre>
+<div class="callout ok">
+  <b>동작 확인 포인트.</b> ① 알림이 기기에 도착하는가 ② 알림을 <b>탭하면</b> 앱이 열리며 <code>data.url</code> 주소로 웹뷰가 이동하는가.
+  (앱이 꺼진 상태에서 탭해도 이동하도록 cold-start 처리까지 구현돼 있음)
+</div>
+
+<!-- ===================== 10 ===================== -->
+<h2>10. 자주 막히는 부분 (트러블슈팅)</h2>
+<table>
+  <tr><th>증상</th><th>원인 / 해결</th></tr>
+  <tr><td>토큰이 <code>null</code> / "projectId 없음" 경고</td><td><code>eas init</code> 안 함 → 4번 실행. 또는 시뮬레이터에서 실행함(실기기 필요)</td></tr>
+  <tr><td>Expo Go 에서 푸시 안 옴</td><td>정상. <b>SDK 53+ 부터 Expo Go 는 원격 푸시 미지원</b>. preview/production 빌드로 테스트</td></tr>
+  <tr><td>안드로이드만 푸시 안 옴</td><td>FCM 서비스계정 JSON 미등록 → 5번. <code>eas credentials</code> 확인</td></tr>
+  <tr><td>iOS 빌드/제출 실패</td><td>Apple Developer Program 미가입 또는 결제 미완료. 멤버십 활성화 확인</td></tr>
+  <tr><td>Play Console "버전 코드 중복"</td><td>같은 versionCode 재업로드. <code>production</code> 프로필이 <code>autoIncrement</code> 라 자동 증가됨 — EAS 로 재빌드</td></tr>
+  <tr><td>알림 탭해도 이동 안 함</td><td>푸시 <code>data</code> 에 <code>url</code> 키가 있어야 함 (백엔드 발송 형식 확인)</td></tr>
+</table>
+
+<!-- ===================== 11 ===================== -->
+<h2>11. 명령어 치트시트</h2>
+<pre><code><span class="c"># 1) 준비</span>
+npm install -g eas-cli
+npm install
+eas login                                   <span class="c"># 본인 Expo 계정</span>
+eas init                                    <span class="c"># projectId 연결</span>
+
+<span class="c"># 2) 점검</span>
+npx tsc --noEmit
+npx expo lint
+
+<span class="c"># 3) 빌드</span>
+eas build --profile preview    --platform android   <span class="c"># 테스트 APK</span>
+eas build --profile production --platform android   <span class="c"># 스토어 AAB</span>
+eas build --profile production --platform ios        <span class="c"># 스토어 iOS</span>
+
+<span class="c"># 4) 제출</span>
+eas submit --profile production --platform ios       <span class="c"># → TestFlight</span>
+eas submit --profile production --platform android   <span class="c"># → Play Console</span>
+
+<span class="c"># 5) 자격증명/푸시</span>
+eas credentials                                      <span class="c"># FCM JSON 등록 등</span></code></pre>
+
+<hr>
+<p class="small">
+  문서 끝. 프론트엔드 코드(WebView + 푸시 프론트)는 구현·검증 완료 상태이며, 빌드/배포 담당자는 위 4→5→6→7/8→9 순서로 진행하면 됩니다.
+  백엔드 연동은 동봉된 <code>docs/BACKEND.md</code> 를 백엔드 담당자에게 전달하세요.
+</p>
+
+</body>
+</html>

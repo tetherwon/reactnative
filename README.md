@@ -1,56 +1,52 @@
-# Welcome to your Expo app 👋
+# shoppinglog.store WebView 앱
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+[Expo](https://expo.dev) (React Native) 기반의 **WebView + 푸시 알림** 앱입니다.
+[https://shoppinglog.store](https://shoppinglog.store) 를 풀스크린 WebView 로 띄우고,
+Expo 푸시 알림을 등록합니다.
 
-## Get started
+## 구조
 
-1. Install dependencies
+| 파일 | 역할 |
+| --- | --- |
+| [src/app/index.tsx](src/app/index.tsx) | 풀스크린 WebView + 로딩 스피너 + 안드로이드 뒤로가기 + 푸시 연동 |
+| [src/app/_layout.tsx](src/app/_layout.tsx) | 헤더 없는 단순 Stack 레이아웃 |
+| [src/lib/notifications.ts](src/lib/notifications.ts) | 알림 핸들러 + Expo 푸시 토큰 등록 헬퍼 |
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## 실행
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+> ⚠️ **푸시 알림은 Expo Go 에서 동작하지 않습니다 (SDK 53+ 부터 원격 푸시 미지원).**
+> 푸시를 테스트하려면 [development build](https://docs.expo.dev/develop/development-builds/introduction/) 가 필요합니다.
 
-### Other setup steps
+```bash
+# 1) EAS 프로젝트 연결 → app.json 에 extra.eas.projectId 자동 주입
+npx eas init
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+# 2) 개발용 빌드 (실제 기기)
+npx eas build --profile development --platform ios     # 또는 android
+```
 
-## Learn more
+## 푸시 알림 동작
 
-To learn more about developing your project with Expo, look at the following resources:
+1. 앱 시작 시 [registerForPushNotificationsAsync()](src/lib/notifications.ts) 호출 → 권한 요청 후 **Expo 푸시 토큰**을 콘솔에 출력합니다.
+2. 토큰으로 [Expo Push Tool](https://expo.dev/notifications) 에서 테스트 발송이 가능합니다.
+3. 알림 데이터(`data`)에 `url` 이 있으면, 알림을 탭했을 때 해당 URL 로 WebView 가 이동합니다.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+   ```json
+   {
+     "to": "ExponentPushToken[...]",
+     "title": "주문 알림",
+     "body": "새 주문이 들어왔어요",
+     "data": { "url": "https://shoppinglog.store/orders" }
+   }
+   ```
 
-## Join the community
+## 메모
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- 실제 푸시 토큰 발급은 **실제 기기**에서만 가능합니다 (시뮬레이터/에뮬레이터 불가).
+- 안드로이드는 토큰 발급 전 `default` 알림 채널을 등록합니다.
+- 띄우는 URL 은 [src/app/index.tsx](src/app/index.tsx) 의 `HOME_URL` 상수에서 변경할 수 있습니다.

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>앱 아이콘 · 스플래시 이미지 세팅 가이드</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Apple SD Gothic Neo", "Helvetica Neue", -apple-system, sans-serif;
+    color: #1a1a2e; font-size: 11pt; line-height: 1.65; margin: 0;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  h1,h2,h3 { line-height: 1.3; }
+  h2 { font-size: 16pt; color:#0b3d91; border-bottom:3px solid #208AEF; padding-bottom:6px; margin-top:34px; page-break-after: avoid; }
+  h3 { font-size: 12.5pt; color:#0b3d91; margin-top:22px; page-break-after: avoid; }
+  p { margin: 8px 0; }
+  code { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:9.5pt; background:#eef2f7; padding:1px 5px; border-radius:4px; color:#b1265e; }
+  pre { background:#0f1f3d; color:#e6edf7; padding:12px 14px; border-radius:8px; font-family:"SF Mono",Menlo,Consolas,monospace; font-size:9pt; line-height:1.5; overflow-x:auto; page-break-inside: avoid; margin:10px 0; }
+  pre code { background:none; color:inherit; padding:0; }
+  pre .c { color:#7f9cc4; }
+  pre .k { color:#9ad0ff; }
+  table { border-collapse:collapse; width:100%; margin:12px 0; font-size:10pt; page-break-inside: avoid; }
+  th,td { border:1px solid #cdd6e4; padding:7px 9px; text-align:left; vertical-align:top; }
+  th { background:#e8f1fd; color:#0b3d91; }
+  .callout { border-radius:8px; padding:11px 14px; margin:12px 0; font-size:10pt; page-break-inside: avoid; }
+  .info { background:#e8f4ff; border-left:5px solid #208AEF; }
+  .warn { background:#fff4e5; border-left:5px solid #f59e0b; }
+  .danger { background:#ffeaea; border-left:5px solid #e03131; }
+  .ok { background:#e9f9ed; border-left:5px solid #2f9e44; }
+  .tag { display:inline-block; font-size:8.5pt; font-weight:700; padding:2px 8px; border-radius:20px; color:#fff; }
+  .tag-ios{ background:#000; } .tag-aos{ background:#3ddc84; color:#063; } .tag-web{ background:#6741d9; } .tag-both{ background:#208AEF; }
+  ul,ol { margin:8px 0; padding-left:22px; } li { margin:4px 0; }
+  .cover { text-align:center; padding-top:130px; page-break-after: always; }
+  .cover h1 { font-size:28pt; color:#0b3d91; margin-bottom:4px; }
+  .cover .sub { font-size:13pt; color:#52607a; margin-top:8px; }
+  .cover .badge { display:inline-block; margin-top:30px; background:#208AEF; color:#fff; padding:8px 20px; border-radius:30px; font-size:11pt; font-weight:700; }
+  .cover .meta { margin-top:55px; font-size:10.5pt; color:#52607a; }
+  .step { background:#f5f8fc; border:1px solid #dce5f1; border-radius:8px; padding:4px 14px; margin:10px 0; page-break-inside: avoid; }
+  .small { font-size:9.5pt; color:#52607a; }
+  hr { border:none; border-top:1px solid #dce5f1; margin:18px 0; }
+  /* 세이프존 다이어그램 */
+  .diagram { display:flex; gap:26px; justify-content:center; margin:14px 0; page-break-inside: avoid; }
+  .sq { width:150px; height:150px; border:2px dashed #b1c2dd; position:relative; border-radius:10px; background:#f0f5fc; }
+  .sq .circle { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:99px; height:99px; border:2px solid #208AEF; border-radius:50%; }
+  .sq .logo { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:60px; height:60px; background:#208AEF; border-radius:14px; color:#fff; font-size:8pt; display:flex; align-items:center; justify-content:center; text-align:center; }
+  .cap { text-align:center; font-size:9pt; color:#52607a; margin-top:6px; }
+  .filemap { font-family:"SF Mono",Menlo,monospace; font-size:9pt; background:#f5f8fc; border:1px solid #dce5f1; border-radius:8px; padding:12px 14px; line-height:1.7; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <h1>앱 아이콘 · 스플래시<br>이미지 세팅 가이드</h1>
+  <div class="sub">shoppinglog.store — Expo (React Native) 앱</div>
+  <div class="badge">아이콘 · 적응형 아이콘 · 스플래시 화면</div>
+  <div class="meta">
+    이 문서는 <b>이 프로젝트의 실제 파일 경로</b>를 기준으로,<br>
+    아이콘과 스플래시 이미지를 어디에 어떤 크기로 넣는지 설명합니다.
+  </div>
+</div>
+
+<!-- 1 -->
+<h2>1. 먼저 알아둘 점</h2>
+<ul>
+  <li>아이콘·스플래시는 <b>설정 파일 <code>app.json</code></b> 이 가리키는 이미지로 결정됩니다. 이미지를 <b>같은 경로·같은 파일명</b>으로 교체하면 가장 간단합니다.</li>
+  <li>이 화면들은 <b>실제 빌드(dev build / production)</b> 에서만 보입니다. <b>Expo Go 에서는 Expo 기본 아이콘</b>이 보이니 빌드해서 확인하세요.</li>
+  <li>모든 이미지는 <b>PNG</b> 권장. (스플래시·안드로이드 전경은 투명 배경 가능 / iOS 메인 아이콘은 투명 불가)</li>
+</ul>
+
+<div class="callout info">
+  <b>가장 빠른 방법.</b> 아래 표의 경로에 있는 파일을 <b>동일한 이름·동일한(또는 더 큰) 크기</b>의 새 이미지로 덮어쓰기 → 6번의 반영 명령 실행. 끝.
+</div>
+
+<!-- 2 -->
+<h2>2. 파일 경로 한눈에 (이 프로젝트 기준)</h2>
+<table>
+  <tr><th>용도</th><th>파일 경로</th><th>현재 크기</th><th>권장 크기</th></tr>
+  <tr><td><span class="tag tag-both">공통</span> 메인 아이콘</td><td><code>assets/images/icon.png</code></td><td>1024×1024</td><td><b>1024×1024</b></td></tr>
+  <tr><td><span class="tag tag-ios">iOS</span> 아이콘 번들</td><td><code>assets/expo.icon/</code></td><td>.icon 번들</td><td>Icon Composer 또는 PNG로 교체</td></tr>
+  <tr><td><span class="tag tag-aos">AOS</span> 전경(로고)</td><td><code>assets/images/android-icon-foreground.png</code></td><td>512×512</td><td><b>512×512</b> (투명, 중앙 안전영역)</td></tr>
+  <tr><td><span class="tag tag-aos">AOS</span> 배경</td><td><code>assets/images/android-icon-background.png</code></td><td>512×512</td><td><b>512×512</b> (단색/패턴)</td></tr>
+  <tr><td><span class="tag tag-aos">AOS</span> 단색(테마)</td><td><code>assets/images/android-icon-monochrome.png</code></td><td>432×432</td><td><b>432×432</b> (흰 실루엣+투명)</td></tr>
+  <tr><td><span class="tag tag-web">WEB</span> 파비콘</td><td><code>assets/images/favicon.png</code></td><td>48×48</td><td>48×48 (또는 196×196)</td></tr>
+  <tr><td><span class="tag tag-both">공통</span> 스플래시 로고</td><td><code>assets/images/splash-icon.png</code></td><td>228×213</td><td><b>1024×1024</b> (투명 배경 권장)</td></tr>
+</table>
+
+<h3>app.json 의 해당 설정 위치</h3>
+<div class="filemap">
+expo.<b>icon</b> ──────────────────── ./assets/images/icon.png<br>
+expo.ios.<b>icon</b> ─────────────── ./assets/expo.icon<br>
+expo.android.<b>adaptiveIcon</b><br>
+&nbsp;&nbsp;├ foregroundImage ── ./assets/images/android-icon-foreground.png<br>
+&nbsp;&nbsp;├ backgroundImage ── ./assets/images/android-icon-background.png<br>
+&nbsp;&nbsp;├ monochromeImage ─ ./assets/images/android-icon-monochrome.png<br>
+&nbsp;&nbsp;└ backgroundColor ── #E6F4FE<br>
+expo.web.<b>favicon</b> ──────────── ./assets/images/favicon.png<br>
+expo.plugins[expo-splash-screen]<br>
+&nbsp;&nbsp;├ backgroundColor ── #208AEF<br>
+&nbsp;&nbsp;└ android.image ──── ./assets/images/splash-icon.png (imageWidth: 76)
+</div>
+
+<!-- 3 -->
+<h2>3. 앱 아이콘</h2>
+
+<h3>3-1. <span class="tag tag-both">공통</span> 메인 아이콘 — icon.png</h3>
+<p><code>assets/images/icon.png</code> 를 <b>1024×1024 PNG</b> 로 교체. iOS 기본 아이콘과 안드로이드 일부에서 베이스로 쓰입니다.</p>
+<div class="callout warn">
+  <b>iOS 아이콘 규칙.</b> 정사각형, <b>투명(알파) 금지</b>, 모서리는 <b>직각</b>으로 제작(둥근 모서리는 OS가 자동 적용). 텍스트는 가장자리에서 충분히 안쪽으로.
+</div>
+
+<h3>3-2. <span class="tag tag-ios">iOS</span> 아이콘 — .icon 번들</h3>
+<p>이 프로젝트의 <code>ios.icon</code> 은 <b>Apple Icon Composer 형식(<code>assets/expo.icon/</code>)</b> 으로 돼 있습니다(iOS 18/26 의 입체·다크·틴트 아이콘 지원). 두 가지 방법 중 택1:</p>
+<ul>
+  <li><b>간단(권장):</b> 그냥 PNG 하나로 쓰고 싶으면 <code>app.json</code> 에서 <code>ios.icon</code> 값을 <b>1024×1024 PNG 경로로 변경</b>.
+    <pre><code><span class="k">"ios"</span>: { <span class="k">"icon"</span>: <span style="color:#a5e3a5">"./assets/images/icon.png"</span>, ... }</code></pre>
+  </li>
+  <li><b>고급:</b> 입체/다크/틴트 변형까지 만들려면 Apple <b>Icon Composer</b>(무료, Xcode 16+ 포함) 로 <code>assets/expo.icon</code> 을 열어 편집/교체.</li>
+</ul>
+
+<h3>3-3. <span class="tag tag-aos">Android</span> 적응형 아이콘 (전경 / 배경 / 단색)</h3>
+<p>안드로이드는 <b>전경 + 배경</b>을 합성해 기기마다 원형·둥근사각 등으로 마스킹합니다. 그래서 <b>전경 로고는 가운데 안전영역 안</b>에 둬야 잘리지 않습니다.</p>
+
+<div class="diagram">
+  <div>
+    <div class="sq"><div class="circle"></div><div class="logo">로고</div></div>
+    <div class="cap">⭕ 안전영역(중앙 원) 안에 로고<br>바깥 ~18%는 잘릴 수 있음</div>
+  </div>
+  <div>
+    <div class="sq" style="background:#208AEF"><div class="logo" style="background:#fff;color:#208AEF">로고</div></div>
+    <div class="cap">배경 = 단색/패턴<br>전경 = 투명 + 로고</div>
+  </div>
+</div>
+
+<table>
+  <tr><th>레이어</th><th>파일</th><th>제작 가이드</th></tr>
+  <tr><td>전경</td><td><code>android-icon-foreground.png</code></td><td>512×512, <b>투명</b> 배경 + 로고를 중앙에. 로고는 캔버스의 약 <b>2/3 크기</b> 이내</td></tr>
+  <tr><td>배경</td><td><code>android-icon-background.png</code></td><td>512×512 단색/그라데이션/패턴 (투명 X)</td></tr>
+  <tr><td>단색</td><td><code>android-icon-monochrome.png</code></td><td>432×432, <b>흰색 실루엣 + 투명</b>. Android 13+ 테마 아이콘용</td></tr>
+</table>
+<p class="small">배경을 이미지 대신 단색으로 하려면 <code>backgroundImage</code> 줄을 빼고 <code>backgroundColor</code> 만 쓰면 됩니다.</p>
+
+<h3>3-4. <span class="tag tag-web">Web</span> 파비콘</h3>
+<p><code>assets/images/favicon.png</code> 교체 (48×48, 정사각). 웹 빌드에서만 사용.</p>
+
+<!-- 4 -->
+<h2>4. 스플래시 화면 (앱 실행 시 로딩 화면)</h2>
+<p><code>expo-splash-screen</code> 플러그인이 처리합니다. <code>app.json</code> 의 플러그인 설정에서 <b>배경색</b>과 <b>가운데 로고 이미지</b>를 지정합니다.</p>
+
+<h3>4-1. 로고 이미지 교체</h3>
+<p><code>assets/images/splash-icon.png</code> 를 <b>투명 배경의 로고 PNG</b>(권장 1024×1024)로 교체.</p>
+
+<h3>4-2. app.json 설정</h3>
+<pre><code>[
+  <span class="k">"expo-splash-screen"</span>,
+  {
+    <span class="k">"backgroundColor"</span>: <span style="color:#a5e3a5">"#208AEF"</span>,   <span class="c">// 스플래시 배경색</span>
+    <span class="k">"image"</span>: <span style="color:#a5e3a5">"./assets/images/splash-icon.png"</span>,  <span class="c">// 공통 로고 (추가 가능)</span>
+    <span class="k">"imageWidth"</span>: 200,            <span class="c">// 로고 표시 너비(dp). 현재 76 → 보통 160~220</span>
+    <span class="k">"resizeMode"</span>: <span style="color:#a5e3a5">"contain"</span>,
+    <span class="k">"dark"</span>: {                     <span class="c">// (선택) 다크 모드 전용</span>
+      <span class="k">"backgroundColor"</span>: <span style="color:#a5e3a5">"#0b1f3a"</span>,
+      <span class="k">"image"</span>: <span style="color:#a5e3a5">"./assets/images/splash-icon.png"</span>
+    }
+  }
+]</code></pre>
+<div class="callout info">
+  현재는 <code>android.image</code> 만 지정돼 있습니다. <b>iOS·안드로이드 공통</b>으로 하려면 위처럼 최상위 <code>image</code>/<code>imageWidth</code> 를 넣으세요.
+  로고가 너무 작게 보이면 <code>imageWidth</code> 값을 키우면 됩니다(예: 76 → 200).
+</div>
+
+<!-- 5 -->
+<h2>5. 교체 후 반영하기</h2>
+<p>이미지를 바꾸거나 <code>app.json</code> 을 수정한 뒤에는 <b>네이티브 에셋 재생성</b>이 필요합니다.</p>
+
+<div class="step"><b>EAS 클라우드 빌드를 쓰는 경우 (권장)</b> — 그냥 다시 빌드하면 자동 반영</div>
+<pre><code>eas build --profile preview --platform android</code></pre>
+
+<div class="step"><b>로컬에서 네이티브 폴더를 쓰는 경우</b> — prebuild 재생성</div>
+<pre><code>npx expo prebuild --clean      <span class="c"># android/ ios/ 네이티브 아이콘·스플래시 재생성</span></code></pre>
+
+<div class="step"><b>잘 안 바뀌면 캐시 정리 후 재실행</b></div>
+<pre><code>npx expo start --clear</code></pre>
+
+<div class="callout warn">
+  아이콘이 안 바뀌어 보이면 대개 <b>기기/시뮬레이터 캐시</b> 때문입니다. <b>앱을 완전히 삭제 후 재설치</b>하면 새 아이콘이 보입니다.
+  (Expo Go 에서는 절대 안 바뀜 — 실제 빌드로 확인)
+</div>
+
+<!-- 6 -->
+<h2>6. 디자인 규격 체크리스트</h2>
+<table>
+  <tr><th>항목</th><th>규격</th></tr>
+  <tr><td>메인 아이콘</td><td>1024×1024 PNG, 정사각, <b>알파 없음</b>, 직각 모서리</td></tr>
+  <tr><td>AOS 전경 로고</td><td>512×512 PNG, <b>투명</b>, 로고는 중앙 안전영역(≈66%) 안</td></tr>
+  <tr><td>AOS 배경</td><td>512×512 PNG(불투명) 또는 <code>backgroundColor</code> 단색</td></tr>
+  <tr><td>AOS 단색</td><td>432×432 PNG, 흰 실루엣+투명</td></tr>
+  <tr><td>스플래시 로고</td><td>1024×1024 PNG, <b>투명</b> 배경, 가운데 정렬</td></tr>
+  <tr><td>색상</td><td>브랜드 메인색 통일 (예: <code>#208AEF</code>)</td></tr>
+</table>
+
+<!-- 7 -->
+<h2>7. 자주 하는 실수</h2>
+<table>
+  <tr><th>실수</th><th>결과 / 해결</th></tr>
+  <tr><td>iOS 아이콘에 투명 배경 사용</td><td>업로드 거부/검은 배경 → 불투명 PNG로</td></tr>
+  <tr><td>안드로이드 로고를 꽉 채움</td><td>마스킹 시 잘림 → 중앙 안전영역 안으로 축소</td></tr>
+  <tr><td>Expo Go 에서 아이콘 확인</td><td>안 바뀜(정상) → dev/production 빌드로 확인</td></tr>
+  <tr><td>이미지만 바꾸고 빌드 안 함</td><td>반영 안 됨 → <code>eas build</code> 또는 <code>prebuild --clean</code></td></tr>
+  <tr><td>스플래시 로고가 너무 작음</td><td><code>imageWidth</code> 값을 키우기 (예 200)</td></tr>
+</table>
+
+<hr>
+<p class="small">참고: 위 경로/설정은 모두 동봉된 <code>app.json</code> 기준입니다. 디자이너에게는 "6. 디자인 규격 체크리스트" 표만 전달해도 충분합니다.</p>
+
+</body>
+</html>

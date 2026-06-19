@@ -8,9 +8,12 @@
     "scheme": "webview",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "store.shoppinglog.app",
+      "supportsTablet": true
     },
     "android": {
+      "package": "store.shoppinglog.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -33,6 +36,12 @@
             "image": "./assets/images/splash-icon.png",
             "imageWidth": 76
           }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#208AEF"
         }
       ]
     ],
