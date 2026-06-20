@@ -94,7 +94,9 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    // 하단은 화면 끝까지 꽉 채운다(웹페이지 자체 하단 메뉴가 시스템 내비게이션 바
+    // 위에 자연스럽게 붙도록). 상단만 상태바/노치를 피하는 inset 적용.
+    <SafeAreaView style={styles.container} edges={['top']}>
       <WebView
         ref={webViewRef}
         source={{ uri: HOME_URL }}
