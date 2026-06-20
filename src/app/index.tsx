@@ -1,3 +1,4 @@
+import { useNetInfo } from '@react-native-community/netinfo';
 import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -10,6 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 
+import ConnectionErrorView from '@/components/ConnectionErrorView';
+import * as haptics from '@/lib/haptics';
 import { registerForPushNotificationsAsync } from '@/lib/notifications';
 
 const HOME_URL = 'https://shoppinglog.store';
@@ -20,6 +23,11 @@ export default function HomeScreen() {
   const isLoaded = useRef(false);
   const pendingUrl = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  // 네트워크 상태 감지 — isConnected 가 명시적으로 false 일 때만 오프라인으로 본다.
+  const { isConnected } = useNetInfo();
+  const isOffline = isConnected === false;
 
   // 웹뷰로 특정 URL 이동. 아직 첫 로드 전이면 보류했다가 onLoadEnd 에서 적용.
   const goTo = useCallback((url: string) => {
@@ -30,6 +38,13 @@ export default function HomeScreen() {
     } else {
       pendingUrl.current = url;
     }
+  }, []);
+
+  // 에러/오프라인 화면에서 "다시 시도" → 웹뷰 리로드.
+  const handleRetry = useCallback(() => {
+    setLoadError(false);
+    setLoading(true);
+    webViewRef.current?.reload();
   }, []);
 
   // 앱 시작 시 1회 푸시 알림 등록
@@ -43,6 +58,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const url = lastResponse?.notification.request.content.data?.url;
     if (typeof url === 'string' && url.length > 0) {
+      haptics.success();
       goTo(url);
     }
   }, [lastResponse, goTo]);
@@ -86,14 +102,39 @@ export default function HomeScreen() {
         onNavigationStateChange={onNavigationStateChange}
         onLoadStart={() => setLoading(true)}
         onLoadEnd={onLoadEnd}
+        // 네트워크 수준 로드 실패(예: 오프라인) → 네이티브 에러 화면 표시
+        onError={() => {
+          setLoading(false);
+          setLoadError(true);
+          haptics.error();
+        }}
+        // iOS 웹뷰 프로세스가 죽으면(메모리 부족 등) 자동 복구
+        onContentProcessDidTerminate={() => webViewRef.current?.reload()}
         allowsBackForwardNavigationGestures
         pullToRefreshEnabled
         domStorageEnabled
         javaScriptEnabled
+        // 상품 사진 업로드(<input type="file"> / getUserMedia) 지원
+        mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
+        allowsInlineMediaPlayback
+        allowFileAccess
       />
-      {loading && (
+      {loading && !loadError && (
         <View style={styles.loader} pointerEvents="none">
           <ActivityIndicator size="large" color="#208AEF" />
+        </View>
+      )}
+      {(loadError || isOffline) && (
+        <View style={StyleSheet.absoluteFill}>
+          <ConnectionErrorView
+            title={isOffline ? '오프라인 상태예요' : '페이지를 불러올 수 없어요'}
+            message={
+              isOffline
+                ? '인터넷에 연결되어 있지 않아요. 연결 후 다시 시도해 주세요.'
+                : '잠시 후 다시 시도해 주세요.'
+            }
+            onRetry={handleRetry}
+          />
         </View>
       )}
     </SafeAreaView>
