@@ -1,6 +1,6 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as haptics from '@/lib/haptics';
@@ -52,6 +52,13 @@ export default function AppLockGate({ children }: { children: React.ReactNode })
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // 앱 잠금은 iOS에서만 사용한다.
+      // (iOS는 App Store 4.2 대응용 네이티브 기능이 필요하지만,
+      //  Android는 해당 정책이 없어 매번 인증을 요구하면 마찰만 커진다.)
+      if (Platform.OS !== 'ios') {
+        setState('unlocked');
+        return;
+      }
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const enrolled = await LocalAuthentication.isEnrolledAsync();
       if (cancelled) return;
