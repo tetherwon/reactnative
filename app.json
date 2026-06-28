@@ -8,10 +8,10 @@
     "scheme": "webview",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "store.shoppinglog.app",
       "supportsTablet": true,
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "상품 사진을 촬영해 업로드하기 위해 카메라를 사용합니다.",
         "NSPhotoLibraryUsageDescription": "상품 사진을 선택해 업로드하기 위해 사진 보관함에 접근합니다."
       }
@@ -20,10 +20,8 @@
       "package": "store.shoppinglog.app",
       "permissions": ["android.permission.CAMERA"],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#208AEF",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
     },
