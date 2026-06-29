@@ -21,7 +21,7 @@
       "package": "store.shoppinglog.app",
       "permissions": ["android.permission.CAMERA"],
       "adaptiveIcon": {
-        "backgroundColor": "#208AEF",
+        "backgroundColor": "#1371F9",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
@@ -38,7 +38,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#1471FD"
+          "backgroundColor": "#1371F9"
         }
       ],
       [
