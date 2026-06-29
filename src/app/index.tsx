@@ -26,10 +26,13 @@ const HOME_URL = 'https://shoppinglog.store';
 
 // 구글 OAuth 등은 "임베디드 웹뷰"를 감지하면 로그인을 막는다(403, disallowed_useragent).
 // 웹뷰 표식이 없는 일반 브라우저 User-Agent 로 위장해 이를 우회한다.
-const USER_AGENT =
+// 끝에 'ShoppingLogApp' 식별자를 붙여, 웹사이트가 "앱 안"임을 감지할 수 있게 한다.
+// (예: 카카오 로그인을 앱에서는 웹 로그인으로 강제 → throughTalk:false)
+const BASE_UA =
   Platform.OS === 'ios'
     ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
     : 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
+const USER_AGENT = `${BASE_UA} ShoppingLogApp/1.0`;
 
 export default function HomeScreen() {
   const webViewRef = useRef<WebView>(null);
