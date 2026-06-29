@@ -17,6 +17,13 @@ import { registerForPushNotificationsAsync } from '@/lib/notifications';
 
 const HOME_URL = 'https://shoppinglog.store';
 
+// 구글 OAuth 등은 "임베디드 웹뷰"를 감지하면 로그인을 막는다(403, disallowed_useragent).
+// 웹뷰 표식이 없는 일반 브라우저 User-Agent 로 위장해 이를 우회한다.
+const USER_AGENT =
+  Platform.OS === 'ios'
+    ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+    : 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
+
 export default function HomeScreen() {
   const webViewRef = useRef<WebView>(null);
   const canGoBack = useRef(false);
@@ -116,6 +123,12 @@ export default function HomeScreen() {
         pullToRefreshEnabled
         domStorageEnabled
         javaScriptEnabled
+        // 구글 로그인(OAuth) 403 회피: 브라우저처럼 보이는 UA + 쿠키 공유
+        userAgent={USER_AGENT}
+        sharedCookiesEnabled
+        thirdPartyCookiesEnabled
+        // OAuth 팝업(target=_blank / window.open)을 같은 웹뷰에서 처리
+        setSupportMultipleWindows={false}
         // 상품 사진 업로드(<input type="file"> / getUserMedia) 지원
         mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
         allowsInlineMediaPlayback
