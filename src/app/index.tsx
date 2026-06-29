@@ -6,12 +6,19 @@ import {
   BackHandler,
   Platform,
   StyleSheet,
+  ToastAndroid,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 
 import ConnectionErrorView from '@/components/ConnectionErrorView';
+import {
+  isDownloadUrl,
+  isTrustedHost,
+  isWebViewNavigable,
+  openExternalUrl,
+} from '@/lib/externalLinks';
 import * as haptics from '@/lib/haptics';
 import { registerForPushNotificationsAsync } from '@/lib/notifications';
 
@@ -29,6 +36,7 @@ export default function HomeScreen() {
   const canGoBack = useRef(false);
   const isLoaded = useRef(false);
   const pendingUrl = useRef<string | null>(null);
+  const lastBackPress = useRef(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -78,13 +86,46 @@ export default function HomeScreen() {
         webViewRef.current?.goBack();
         return true;
       }
-      return false;
+      // 더 뒤로 갈 곳이 없으면, 한 번 더 눌러야 종료(실수 종료 방지)
+      const now = Date.now();
+      if (now - lastBackPress.current < 2000) {
+        return false; // 기본 동작(앱 종료) 허용
+      }
+      lastBackPress.current = now;
+      ToastAndroid.show('한 번 더 누르면 종료돼요', ToastAndroid.SHORT);
+      return true;
     });
     return () => sub.remove();
   }, []);
 
   const onNavigationStateChange = (navState: WebViewNavigation) => {
     canGoBack.current = navState.canGoBack;
+  };
+
+  // 모든 이동 요청의 라우터:
+  // - 앱 스킴(intent://, kakaotalk://, tel:, mailto: 등) → 외부 앱/브라우저로 (결제·인증 대응)
+  // - about:/blob:/data: → 웹뷰가 처리
+  // - 안드로이드 문서 다운로드(.pdf 등) → 외부 브라우저가 받게
+  // - 신뢰 도메인(자사·결제·로그인) http(s) → 웹뷰에서 로드
+  // - 그 외 http(s)(미지의 외부/피싱 가능) → 시스템 브라우저로 (진짜 주소창 + 브라우저 보호)
+  const onShouldStartLoadWithRequest = (req: WebViewNavigation) => {
+    const { url } = req;
+    if (!isWebViewNavigable(url)) {
+      openExternalUrl(url);
+      return false;
+    }
+    if (!/^https?:/i.test(url)) {
+      return true; // about:/blob:/data:
+    }
+    if (Platform.OS === 'android' && isDownloadUrl(url)) {
+      openExternalUrl(url);
+      return false;
+    }
+    if (!isTrustedHost(url)) {
+      openExternalUrl(url);
+      return false;
+    }
+    return true;
   };
 
   const onLoadEnd = () => {
@@ -109,6 +150,9 @@ export default function HomeScreen() {
         source={{ uri: HOME_URL }}
         style={styles.webview}
         onNavigationStateChange={onNavigationStateChange}
+        onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+        // iOS 다운로드(영수증/기프티콘 등) → 외부에서 처리
+        onFileDownload={({ nativeEvent }) => openExternalUrl(nativeEvent.downloadUrl)}
         onLoadStart={() => setLoading(true)}
         onLoadEnd={onLoadEnd}
         // 네트워크 수준 로드 실패(예: 오프라인) → 네이티브 에러 화면 표시
