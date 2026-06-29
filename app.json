@@ -4,6 +4,12 @@
     "slug": "webview",
     "owner": "shoppinglog",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/fbefbc24-be24-43b4-99a1-208cdead860b"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "webview",
