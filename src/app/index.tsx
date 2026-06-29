@@ -15,7 +15,6 @@ import { WebView, type WebViewNavigation } from 'react-native-webview';
 import ConnectionErrorView from '@/components/ConnectionErrorView';
 import {
   isDownloadUrl,
-  isTrustedHost,
   isWebViewNavigable,
   openExternalUrl,
 } from '@/lib/externalLinks';
@@ -107,24 +106,19 @@ export default function HomeScreen() {
 
   // 모든 이동 요청의 라우터:
   // - 앱 스킴(intent://, kakaotalk://, tel:, mailto: 등) → 외부 앱/브라우저로 (결제·인증 대응)
-  // - about:/blob:/data: → 웹뷰가 처리
   // - 안드로이드 문서 다운로드(.pdf 등) → 외부 브라우저가 받게
-  // - 신뢰 도메인(자사·결제·로그인) http(s) → 웹뷰에서 로드
-  // - 그 외 http(s)(미지의 외부/피싱 가능) → 시스템 브라우저로 (진짜 주소창 + 브라우저 보호)
+  // - 그 외 http(s)/about/blob/data → 웹뷰에서 그대로 로드(내부 탭 이동 정상 동작)
+  //
+  // ⚠️ 도메인 화이트리스트는 내부 탭 이동까지 막아 흰 화면을 유발해 제거했다.
+  // 보안(피싱) 강화가 필요하면 "현재 페이지와 다른 외부 도메인의 새 창"만
+  // 골라 외부로 보내는 방식으로 다시 설계할 것.
   const onShouldStartLoadWithRequest = (req: WebViewNavigation) => {
     const { url } = req;
     if (!isWebViewNavigable(url)) {
       openExternalUrl(url);
       return false;
     }
-    if (!/^https?:/i.test(url)) {
-      return true; // about:/blob:/data:
-    }
     if (Platform.OS === 'android' && isDownloadUrl(url)) {
-      openExternalUrl(url);
-      return false;
-    }
-    if (!isTrustedHost(url)) {
       openExternalUrl(url);
       return false;
     }
