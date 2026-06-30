@@ -6,8 +6,6 @@ import {
   BackHandler,
   Image,
   Platform,
-  RefreshControl,
-  ScrollView,
   StyleSheet,
   ToastAndroid,
   View,
@@ -24,22 +22,15 @@ const HOME_URL = 'https://shoppinglog.store';
 // 로딩 화면에 띄울 곰 이미지
 const LOADING_BEAR = require('../../assets/images/loading-bear.png');
 
-const isAndroid = Platform.OS === 'android';
-
 export default function HomeScreen() {
   const webViewRef = useRef<WebView>(null);
   const canGoBack = useRef(false);
   const isLoaded = useRef(false);
   const pendingUrl = useRef<string | null>(null);
   const lastBackPress = useRef(0);
-  // 초기 로딩에만 곰 화면을 띄운다(매 이동마다 띄우면 SPA에서 화면이 덮일 위험).
   const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  // 안드로이드 당겨서 새로고침
-  const [refreshing, setRefreshing] = useState(false);
-  const [atTop, setAtTop] = useState(true);
 
-  // 네트워크 상태 감지 — isConnected 가 명시적으로 false 일 때만 오프라인으로 본다.
   const { isConnected } = useNetInfo();
   const isOffline = isConnected === false;
 
@@ -59,21 +50,6 @@ export default function HomeScreen() {
     webViewRef.current?.reload();
   }, []);
 
-  // 안드로이드 당겨서 새로고침 → 웹뷰 리로드
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    webViewRef.current?.reload();
-  }, []);
-
-  // 웹뷰 스크롤이 맨 위일 때만 당겨서 새로고침을 활성화(페이지 스크롤과 충돌 방지)
-  const onWebViewScroll = useCallback(
-    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
-      const top = e.nativeEvent.contentOffset.y <= 0;
-      setAtTop((prev) => (prev === top ? prev : top));
-    },
-    [],
-  );
-
   useEffect(() => {
     registerForPushNotificationsAsync();
   }, []);
@@ -88,7 +64,7 @@ export default function HomeScreen() {
   }, [lastResponse, goTo]);
 
   useEffect(() => {
-    if (!isAndroid) return;
+    if (Platform.OS !== 'android') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (canGoBack.current) {
         webViewRef.current?.goBack();
@@ -111,7 +87,6 @@ export default function HomeScreen() {
 
   const onLoadEnd = () => {
     setFirstLoadDone(true);
-    setRefreshing(false);
     isLoaded.current = true;
     if (pendingUrl.current) {
       const url = pendingUrl.current;
@@ -122,55 +97,24 @@ export default function HomeScreen() {
     }
   };
 
-  const webViewEl = (
-    <WebView
-      ref={webViewRef}
-      source={{ uri: HOME_URL }}
-      style={styles.webview}
-      onNavigationStateChange={onNavigationStateChange}
-      onLoadEnd={onLoadEnd}
-      onError={() => {
-        setFirstLoadDone(true);
-        setRefreshing(false);
-        setLoadError(true);
-        haptics.error();
-      }}
-      onContentProcessDidTerminate={() => webViewRef.current?.reload()}
-      onScroll={isAndroid ? onWebViewScroll : undefined}
-      allowsBackForwardNavigationGestures
-      // iOS 네이티브 당겨서 새로고침 (안드로이드는 아래 RefreshControl 사용)
-      pullToRefreshEnabled
-      nestedScrollEnabled
-      domStorageEnabled
-      javaScriptEnabled
-      // 상품 사진 업로드(<input type="file"> / getUserMedia) 지원
-      mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
-      allowsInlineMediaPlayback
-      allowFileAccess
-    />
-  );
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {isAndroid ? (
-        <ScrollView
-          style={styles.webview}
-          contentContainerStyle={styles.fill}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              enabled={atTop}
-              colors={['#208AEF']}
-              tintColor="#208AEF"
-            />
-          }
-        >
-          {webViewEl}
-        </ScrollView>
-      ) : (
-        webViewEl
-      )}
+      <WebView
+        ref={webViewRef}
+        source={{ uri: HOME_URL }}
+        style={styles.webview}
+        onNavigationStateChange={onNavigationStateChange}
+        onLoadEnd={onLoadEnd}
+        onError={() => {
+          setFirstLoadDone(true);
+          setLoadError(true);
+          haptics.error();
+        }}
+        onContentProcessDidTerminate={() => webViewRef.current?.reload()}
+        domStorageEnabled
+        javaScriptEnabled
+        allowsInlineMediaPlayback
+      />
       {!firstLoadDone && !loadError && (
         <View style={styles.loader} pointerEvents="none">
           <Image
@@ -208,9 +152,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   webview: {
-    flex: 1,
-  },
-  fill: {
     flex: 1,
   },
   loader: {
