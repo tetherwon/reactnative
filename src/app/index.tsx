@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
+  Image,
   Platform,
   StyleSheet,
   ToastAndroid,
@@ -22,6 +23,9 @@ import * as haptics from '@/lib/haptics';
 import { registerForPushNotificationsAsync } from '@/lib/notifications';
 
 const HOME_URL = 'https://shoppinglog.store';
+
+// 로딩 화면에 띄울 곰 이미지
+const LOADING_BEAR = require('../../assets/images/loading-bear.png');
 
 // 구글 OAuth 등은 "임베디드 웹뷰"를 감지하면 로그인을 막는다(403, disallowed_useragent).
 // 웹뷰 표식이 없는 일반 브라우저 User-Agent 로 위장해 이를 우회한다.
@@ -176,8 +180,17 @@ export default function HomeScreen() {
         allowFileAccess
       />
       {loading && !loadError && (
-        <View style={styles.loader} pointerEvents="none">
-          <ActivityIndicator size="large" color="#208AEF" />
+        <View style={styles.loader}>
+          <Image
+            source={LOADING_BEAR}
+            style={styles.loadingBear}
+            resizeMode="contain"
+          />
+          <ActivityIndicator
+            size="large"
+            color="#208AEF"
+            style={styles.loadingSpinner}
+          />
         </View>
       )}
       {(loadError || isOffline) && (
@@ -213,5 +226,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  loadingBear: {
+    width: 200,
+    height: 200,
+  },
+  loadingSpinner: {
+    marginTop: 20,
   },
 });
