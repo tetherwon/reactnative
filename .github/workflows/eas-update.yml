@@ -1,0 +1,36 @@
+name: EAS Update (OTA)
+
+# main 에 푸시되면 JS/이미지 변경을 자동으로 OTA 배포한다.
+# (네이티브 변경 — 아이콘/스플래시/새 패키지 — 은 별도로 `eas build` 필요)
+on:
+  push:
+    branches: [main]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    # EXPO_TOKEN 시크릿이 없으면 스킵(설정 전 실패 방지)
+    if: ${{ github.event_name == 'push' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Publish OTA update
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: eas update --branch production --message "$COMMIT_MESSAGE" --non-interactive
