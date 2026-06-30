@@ -1,8 +1,10 @@
 import { Linking, Platform } from 'react-native';
 
-// http(s)/about/blob/data 는 웹뷰가 직접 로드. 그 외(앱 스킴 등)는 외부로 넘긴다.
+// 웹/JS 관련 URL 은 전부 웹뷰가 직접 처리한다.
+// javascript:/file: 까지 포함해야 JS로 동작하는 버튼·탭·링크가 막히지 않는다.
+// 그 외(intent://, tel:, mailto:, kakaotalk:// 등 진짜 앱 스킴)만 외부로 넘긴다.
 export function isWebViewNavigable(url: string): boolean {
-  return /^(https?:|about:|blob:|data:)/i.test(url);
+  return /^(https?:|about:|blob:|data:|javascript:|file:)/i.test(url);
 }
 
 // 앱 웹뷰 안에서 열어도 되는 "신뢰 도메인" 목록.
