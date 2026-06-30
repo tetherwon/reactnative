@@ -6,6 +6,8 @@ import {
   BackHandler,
   Image,
   Platform,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   ToastAndroid,
   View,
@@ -22,6 +24,8 @@ const HOME_URL = 'https://shoppinglog.store';
 // 로딩 화면에 띄울 곰 이미지
 const LOADING_BEAR = require('../../assets/images/loading-bear.png');
 
+const isAndroid = Platform.OS === 'android';
+
 export default function HomeScreen() {
   const webViewRef = useRef<WebView>(null);
   const canGoBack = useRef(false);
@@ -31,12 +35,14 @@ export default function HomeScreen() {
   // 초기 로딩에만 곰 화면을 띄운다(매 이동마다 띄우면 SPA에서 화면이 덮일 위험).
   const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // 안드로이드 당겨서 새로고침
+  const [refreshing, setRefreshing] = useState(false);
+  const [atTop, setAtTop] = useState(true);
 
   // 네트워크 상태 감지 — isConnected 가 명시적으로 false 일 때만 오프라인으로 본다.
   const { isConnected } = useNetInfo();
   const isOffline = isConnected === false;
 
-  // 웹뷰로 특정 URL 이동. 아직 첫 로드 전이면 보류했다가 onLoadEnd 에서 적용.
   const goTo = useCallback((url: string) => {
     if (isLoaded.current) {
       webViewRef.current?.injectJavaScript(
@@ -47,19 +53,31 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // 에러/오프라인 화면에서 "다시 시도" → 웹뷰 리로드.
   const handleRetry = useCallback(() => {
     setLoadError(false);
     setFirstLoadDone(false);
     webViewRef.current?.reload();
   }, []);
 
-  // 앱 시작 시 1회 푸시 알림 등록
+  // 안드로이드 당겨서 새로고침 → 웹뷰 리로드
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    webViewRef.current?.reload();
+  }, []);
+
+  // 웹뷰 스크롤이 맨 위일 때만 당겨서 새로고침을 활성화(페이지 스크롤과 충돌 방지)
+  const onWebViewScroll = useCallback(
+    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+      const top = e.nativeEvent.contentOffset.y <= 0;
+      setAtTop((prev) => (prev === top ? prev : top));
+    },
+    [],
+  );
+
   useEffect(() => {
     registerForPushNotificationsAsync();
   }, []);
 
-  // 알림 탭 처리 — 웜(앱 켜진 상태) + 콜드스타트(앱 꺼진 상태에서 탭해 실행) 모두 커버.
   const lastResponse = Notifications.useLastNotificationResponse();
   useEffect(() => {
     const url = lastResponse?.notification.request.content.data?.url;
@@ -69,9 +87,8 @@ export default function HomeScreen() {
     }
   }, [lastResponse, goTo]);
 
-  // 안드로이드 하드웨어 뒤로가기 → 웹뷰 히스토리 뒤로
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    if (!isAndroid) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (canGoBack.current) {
         webViewRef.current?.goBack();
@@ -79,7 +96,7 @@ export default function HomeScreen() {
       }
       const now = Date.now();
       if (now - lastBackPress.current < 2000) {
-        return false; // 기본 동작(앱 종료) 허용
+        return false;
       }
       lastBackPress.current = now;
       ToastAndroid.show('한 번 더 누르면 종료돼요', ToastAndroid.SHORT);
@@ -94,6 +111,7 @@ export default function HomeScreen() {
 
   const onLoadEnd = () => {
     setFirstLoadDone(true);
+    setRefreshing(false);
     isLoaded.current = true;
     if (pendingUrl.current) {
       const url = pendingUrl.current;
@@ -104,29 +122,55 @@ export default function HomeScreen() {
     }
   };
 
+  const webViewEl = (
+    <WebView
+      ref={webViewRef}
+      source={{ uri: HOME_URL }}
+      style={styles.webview}
+      onNavigationStateChange={onNavigationStateChange}
+      onLoadEnd={onLoadEnd}
+      onError={() => {
+        setFirstLoadDone(true);
+        setRefreshing(false);
+        setLoadError(true);
+        haptics.error();
+      }}
+      onContentProcessDidTerminate={() => webViewRef.current?.reload()}
+      onScroll={isAndroid ? onWebViewScroll : undefined}
+      allowsBackForwardNavigationGestures
+      // iOS 네이티브 당겨서 새로고침 (안드로이드는 아래 RefreshControl 사용)
+      pullToRefreshEnabled
+      nestedScrollEnabled
+      domStorageEnabled
+      javaScriptEnabled
+      // 상품 사진 업로드(<input type="file"> / getUserMedia) 지원
+      mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
+      allowsInlineMediaPlayback
+      allowFileAccess
+    />
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <WebView
-        ref={webViewRef}
-        source={{ uri: HOME_URL }}
-        style={styles.webview}
-        onNavigationStateChange={onNavigationStateChange}
-        onLoadEnd={onLoadEnd}
-        onError={() => {
-          setFirstLoadDone(true);
-          setLoadError(true);
-          haptics.error();
-        }}
-        onContentProcessDidTerminate={() => webViewRef.current?.reload()}
-        allowsBackForwardNavigationGestures
-        pullToRefreshEnabled
-        domStorageEnabled
-        javaScriptEnabled
-        // 상품 사진 업로드(<input type="file"> / getUserMedia) 지원
-        mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
-        allowsInlineMediaPlayback
-        allowFileAccess
-      />
+      {isAndroid ? (
+        <ScrollView
+          style={styles.webview}
+          contentContainerStyle={styles.fill}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              enabled={atTop}
+              colors={['#208AEF']}
+              tintColor="#208AEF"
+            />
+          }
+        >
+          {webViewEl}
+        </ScrollView>
+      ) : (
+        webViewEl
+      )}
       {!firstLoadDone && !loadError && (
         <View style={styles.loader} pointerEvents="none">
           <Image
@@ -164,6 +208,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   webview: {
+    flex: 1,
+  },
+  fill: {
     flex: 1,
   },
   loader: {
