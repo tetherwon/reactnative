@@ -12,8 +12,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
+import type {
+  ShouldStartLoadRequest,
+  WebViewOpenWindowEvent,
+} from 'react-native-webview/lib/WebViewTypes';
 
 import ConnectionErrorView from '@/components/ConnectionErrorView';
+import {
+  isTrustedHost,
+  isWebViewNavigable,
+  openExternalUrl,
+} from '@/lib/externalLinks';
 import * as haptics from '@/lib/haptics';
 import { registerForPushNotificationsAsync } from '@/lib/notifications';
 
@@ -85,6 +94,33 @@ export default function HomeScreen() {
     canGoBack.current = navState.canGoBack;
   };
 
+  // 새 창 요청(target="_blank" 링크, window.open) 처리.
+  // 안드로이드는 이 핸들러가 없으면 새 창을 화면에 붙지 않는 보이지 않는
+  // 웹뷰에 열어버려서, 눌러도 아무 일도 없는 것처럼 보인다(iOS 는 정상).
+  const onOpenWindow = useCallback(
+    (event: WebViewOpenWindowEvent) => {
+      const { targetUrl } = event.nativeEvent;
+      if (isWebViewNavigable(targetUrl) && isTrustedHost(targetUrl)) {
+        goTo(targetUrl);
+      } else {
+        openExternalUrl(targetUrl);
+      }
+    },
+    [goTo],
+  );
+
+  // 웹 URL(http·https·javascript: 등)은 전부 웹뷰가 그대로 처리하고,
+  // 앱 스킴(intent://, tel:, kakaotalk:// 등)만 외부 앱으로 넘긴다.
+  // (웹뷰가 앱 스킴을 직접 열면 ERR_UNKNOWN_URL_SCHEME 에러 화면이 뜬다.)
+  const onShouldStartLoadWithRequest = useCallback(
+    (request: ShouldStartLoadRequest) => {
+      if (isWebViewNavigable(request.url)) return true;
+      openExternalUrl(request.url);
+      return false;
+    },
+    [],
+  );
+
   const onLoadEnd = () => {
     setFirstLoadDone(true);
     isLoaded.current = true;
@@ -104,6 +140,8 @@ export default function HomeScreen() {
         source={{ uri: HOME_URL }}
         style={styles.webview}
         onNavigationStateChange={onNavigationStateChange}
+        onOpenWindow={onOpenWindow}
+        onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
         onLoadEnd={onLoadEnd}
         onError={() => {
           setFirstLoadDone(true);
