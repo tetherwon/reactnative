@@ -2,7 +2,6 @@ import { useNetInfo } from '@react-native-community/netinfo';
 import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   BackHandler,
   Image,
   Platform,
@@ -28,8 +27,9 @@ import { registerForPushNotificationsAsync } from '@/lib/notifications';
 
 const HOME_URL = 'https://shoppinglog.store';
 
-// 로딩 화면에 띄울 곰 이미지
-const LOADING_BEAR = require('../../assets/images/loading-bear.png');
+// 로딩 화면을 네이티브 스플래시와 동일하게 보이도록 같은 이미지를 사용한다.
+// (스플래시 → 로딩 → 홈 전환이 화면 전환처럼 보이지 않게 하기 위함)
+const SPLASH_IMAGE = require('../../assets/images/splash.png');
 
 export default function HomeScreen() {
   const webViewRef = useRef<WebView>(null);
@@ -156,14 +156,9 @@ export default function HomeScreen() {
       {!firstLoadDone && !loadError && (
         <View style={styles.loader} pointerEvents="none">
           <Image
-            source={LOADING_BEAR}
-            style={styles.loadingBear}
+            source={SPLASH_IMAGE}
+            style={styles.loadingImage}
             resizeMode="contain"
-          />
-          <ActivityIndicator
-            size="large"
-            color="#208AEF"
-            style={styles.loadingSpinner}
           />
         </View>
       )}
@@ -202,11 +197,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#ffffff',
   },
-  loadingBear: {
-    width: 200,
-    height: 200,
-  },
-  loadingSpinner: {
-    marginTop: 20,
+  loadingImage: {
+    width: '100%',
+    height: '100%',
   },
 });
