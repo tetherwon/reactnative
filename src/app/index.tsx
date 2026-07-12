@@ -134,25 +134,27 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <WebView
-        ref={webViewRef}
-        source={{ uri: HOME_URL }}
-        style={styles.webview}
-        onNavigationStateChange={onNavigationStateChange}
-        onOpenWindow={onOpenWindow}
-        onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
-        onLoadEnd={onLoadEnd}
-        onError={() => {
-          setFirstLoadDone(true);
-          setLoadError(true);
-          haptics.error();
-        }}
-        onContentProcessDidTerminate={() => webViewRef.current?.reload()}
-        domStorageEnabled
-        javaScriptEnabled
-        allowsInlineMediaPlayback
-      />
+    <View style={styles.root}>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <WebView
+          ref={webViewRef}
+          source={{ uri: HOME_URL }}
+          style={styles.webview}
+          onNavigationStateChange={onNavigationStateChange}
+          onOpenWindow={onOpenWindow}
+          onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+          onLoadEnd={onLoadEnd}
+          onError={() => {
+            setFirstLoadDone(true);
+            setLoadError(true);
+            haptics.error();
+          }}
+          onContentProcessDidTerminate={() => webViewRef.current?.reload()}
+          domStorageEnabled
+          javaScriptEnabled
+          allowsInlineMediaPlayback
+        />
+      </SafeAreaView>
       {!firstLoadDone && !loadError && (
         <View style={styles.loader} pointerEvents="none">
           <Image
@@ -175,11 +177,15 @@ export default function HomeScreen() {
           />
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
