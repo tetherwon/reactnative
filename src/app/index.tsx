@@ -21,7 +21,7 @@ import type {
 
 import ConnectionErrorView from '@/components/ConnectionErrorView';
 import {
-  isGoogleOAuthUrl,
+  isNativeOAuthStartUrl,
   isTrustedHost,
   isWebViewNavigable,
   openExternalUrl,
@@ -37,10 +37,11 @@ import { registerForPushNotificationsAsync } from '@/lib/notifications';
 
 const HOME_URL = 'https://shoppinglog.store';
 
-// 구글 OAuth 완료 후 되돌아오는 주소(우리 도메인)의 접두사.
-// expo-web-browser 가 이 접두사로 시작하는 URL을 감지하면 인증 세션을 닫고
-// 그 URL을 돌려준다.
-const GOOGLE_OAUTH_RETURN_PREFIX = 'https://shoppinglog.store';
+// 구글 로그인 완료 후 백엔드(app/routes/auth.py 의 APP_AUTH_REDIRECT)가
+// 돌려보내는 딥링크 스킴. app.config.js 의 scheme("webview")과 일치해야
+// 하고, 백엔드 환경변수 APP_AUTH_REDIRECT 도 이 값으로 맞춰야 한다
+// (기본값 "shoppinglog://auth" 는 이 앱 스킴과 다르므로 반드시 덮어써야 함).
+const APP_AUTH_REDIRECT_PREFIX = 'webview://auth';
 
 // 로딩 화면을 네이티브 스플래시와 동일하게 보이도록 같은 이미지를 사용한다.
 // (스플래시 → 로딩 → 홈 전환이 화면 전환처럼 보이지 않게 하기 위함)
@@ -109,22 +110,36 @@ export default function HomeScreen() {
     canGoBack.current = navState.canGoBack;
   };
 
+  // 로그인 완료 후 백엔드가 webview://auth?token=...&new=... 로 돌려준
+  // 딥링크에서 토큰을 꺼내 웹뷰의 localStorage에 심고 홈으로 보낸다.
+  // (Kakao 웹 폴백 로그인이 성공 시 하는 것과 동일한 방식 — auth.js 참고)
+  const completeAppAuthRedirect = useCallback((deepLinkUrl: string) => {
+    const match = deepLinkUrl.match(/[?&]token=([^&]+)/);
+    if (!match) return;
+    const token = decodeURIComponent(match[1]);
+    const script =
+      `try{localStorage.setItem('sl_token',${JSON.stringify(token)});}catch(e){}` +
+      `window.location.href='/';true;`;
+    webViewRef.current?.injectJavaScript(script);
+  }, []);
+
   // 구글은 임베디드 웹뷰 안에서의 OAuth 로그인을 자체 차단한다
-  // (Error 403: disallowed_useragent). accounts.google.com 으로 가는
-  // 이동만 시스템 인증 세션(Custom Tab/SFSafariViewController)으로 열고,
-  // 로그인이 끝나 우리 도메인으로 돌아오면 그 결과를 웹뷰에 그대로 넘긴다
-  // (쿠키가 웹뷰 자체 저장소에 쌓이도록 웹뷰가 그 URL을 직접 로드하게 함).
+  // (Error 403: disallowed_useragent). /auth/google "시작 경로"로 가는
+  // 이동을 통째로 시스템 인증 세션(Custom Tab/SFSafariViewController)
+  // 하나로 열어서 자사→구글→자사 콜백을 전부 같은 브라우저 쿠키 저장소
+  // 안에서 처리하고, 최종 앱 딥링크(webview://auth)로 돌아오면 웹뷰에
+  // 토큰을 넘겨준다.
   const openGoogleOAuth = useCallback(
     (url: string) => {
-      WebBrowser.openAuthSessionAsync(url, GOOGLE_OAUTH_RETURN_PREFIX)
+      WebBrowser.openAuthSessionAsync(url, APP_AUTH_REDIRECT_PREFIX)
         .then((result) => {
           if (result.type === 'success' && result.url) {
-            goTo(result.url);
+            completeAppAuthRedirect(result.url);
           }
         })
         .catch(() => {});
     },
-    [goTo],
+    [completeAppAuthRedirect],
   );
 
   // 새 창 요청(target="_blank" 링크, window.open) 처리.
@@ -133,7 +148,7 @@ export default function HomeScreen() {
   const onOpenWindow = useCallback(
     (event: WebViewOpenWindowEvent) => {
       const { targetUrl } = event.nativeEvent;
-      if (isGoogleOAuthUrl(targetUrl)) {
+      if (isNativeOAuthStartUrl(targetUrl)) {
         openGoogleOAuth(targetUrl);
       } else if (isWebViewNavigable(targetUrl) && isTrustedHost(targetUrl)) {
         goTo(targetUrl);
@@ -149,7 +164,7 @@ export default function HomeScreen() {
   // (웹뷰가 앱 스킴을 직접 열면 ERR_UNKNOWN_URL_SCHEME 에러 화면이 뜬다.)
   const onShouldStartLoadWithRequest = useCallback(
     (request: ShouldStartLoadRequest) => {
-      if (isGoogleOAuthUrl(request.url)) {
+      if (isNativeOAuthStartUrl(request.url)) {
         openGoogleOAuth(request.url);
         return false;
       }
