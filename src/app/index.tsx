@@ -1,6 +1,7 @@
 import { useNetInfo } from '@react-native-community/netinfo';
 import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import * as Notifications from 'expo-notifications';
+import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -110,18 +111,45 @@ export default function HomeScreen() {
     canGoBack.current = navState.canGoBack;
   };
 
-  // 로그인 완료 후 백엔드가 webview://auth?token=...&new=... 로 돌려준
-  // 딥링크에서 토큰을 꺼내 웹뷰의 localStorage에 심고 홈으로 보낸다.
+  // 로그인 토큰을 웹뷰의 localStorage에 심고 홈으로 보낸다.
   // (Kakao 웹 폴백 로그인이 성공 시 하는 것과 동일한 방식 — auth.js 참고)
-  const completeAppAuthRedirect = useCallback((deepLinkUrl: string) => {
-    const match = deepLinkUrl.match(/[?&]token=([^&]+)/);
-    if (!match) return;
-    const token = decodeURIComponent(match[1]);
-    const script =
+  // 웹뷰가 아직 첫 로드를 마치지 않았으면(딥링크 콜드 스타트) 보관해뒀다가
+  // onLoadEnd 에서 주입한다.
+  const pendingAuthToken = useRef<string | null>(null);
+  const applyAuthToken = useCallback((token: string) => {
+    if (!isLoaded.current) {
+      pendingAuthToken.current = token;
+      return;
+    }
+    webViewRef.current?.injectJavaScript(
       `try{localStorage.setItem('sl_token',${JSON.stringify(token)});}catch(e){}` +
-      `window.location.href='/';true;`;
-    webViewRef.current?.injectJavaScript(script);
+        `window.location.href='/';true;`,
+    );
   }, []);
+
+  // 로그인 완료 후 백엔드가 webview://auth?token=...&new=... 로 돌려준
+  // 딥링크에서 토큰을 꺼낸다.
+  const completeAppAuthRedirect = useCallback(
+    (deepLinkUrl: string) => {
+      const match = deepLinkUrl.match(/[?&]token=([^&]+)/);
+      if (!match) return;
+      applyAuthToken(decodeURIComponent(match[1]));
+    },
+    [applyAuthToken],
+  );
+
+  // 로그인 딥링크가 openAuthSessionAsync 에 잡히지 않고 Expo Router 로 직접
+  // 들어온 경우(로그인 도중 앱 프로세스가 죽었다가 딥링크로 재시작된 경우 등).
+  // +native-intent.tsx 가 webview://auth?token=... 을 /?token=... 으로
+  // 돌려보내므로 여기서 token 파라미터를 받아 처리한다.
+  const { token: authTokenParam } = useLocalSearchParams<{ token?: string }>();
+  const handledAuthTokenParam = useRef<string | null>(null);
+  useEffect(() => {
+    if (typeof authTokenParam !== 'string' || authTokenParam.length === 0) return;
+    if (handledAuthTokenParam.current === authTokenParam) return;
+    handledAuthTokenParam.current = authTokenParam;
+    applyAuthToken(authTokenParam);
+  }, [authTokenParam, applyAuthToken]);
 
   // 구글은 임베디드 웹뷰 안에서의 OAuth 로그인을 자체 차단한다
   // (Error 403: disallowed_useragent). /auth/google "시작 경로"로 가는
@@ -211,6 +239,11 @@ export default function HomeScreen() {
       webViewRef.current?.injectJavaScript(
         `window.location.href = ${JSON.stringify(url)}; true;`,
       );
+    }
+    if (pendingAuthToken.current) {
+      const token = pendingAuthToken.current;
+      pendingAuthToken.current = null;
+      applyAuthToken(token);
     }
   };
 
