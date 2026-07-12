@@ -40,6 +40,13 @@ export function isTrustedHost(url: string): boolean {
   return TRUSTED_HOSTS.some((d) => host === d || host.endsWith('.' + d));
 }
 
+// 구글은 임베디드 웹뷰 안에서의 OAuth 로그인 시도를 자체 차단한다
+// (Error 403: disallowed_useragent). 이 호스트로 가는 이동만은 웹뷰에
+// 두지 않고 시스템 인증 세션(Custom Tab/SFSafariViewController)으로 열어야 한다.
+export function isGoogleOAuthUrl(url: string): boolean {
+  return getHost(url) === 'accounts.google.com';
+}
+
 // 안드로이드에서 외부 브라우저로 다운로드시킬 문서 확장자.
 // (이미지(jpg/png)는 쿼리스트링 오탐 위험이 있어 제외 — 웹뷰에서 봐도 무방)
 const DOWNLOAD_EXT = /\.(pdf|xlsx?|csv|zip|hwp|docx?|pptx?)(\?|#|$)/i;
