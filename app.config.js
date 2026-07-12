@@ -67,6 +67,9 @@ module.exports = {
         '@react-native-seoul/kakao-login',
         {
           kakaoAppKey: KAKAO_NATIVE_APP_KEY,
+          // 플러그인 기본값(Kotlin 1.5.10)이 Expo 모듈 최소 요구 버전(2.1.20)보다
+          // 낮아 빌드가 깨짐. React Native 0.85가 쓰는 버전과 동일하게 고정한다.
+          kotlinVersion: '2.1.20',
         },
       ],
       [
