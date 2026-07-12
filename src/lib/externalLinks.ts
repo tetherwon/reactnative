@@ -41,10 +41,15 @@ export function isTrustedHost(url: string): boolean {
 }
 
 // 구글은 임베디드 웹뷰 안에서의 OAuth 로그인 시도를 자체 차단한다
-// (Error 403: disallowed_useragent). 이 호스트로 가는 이동만은 웹뷰에
-// 두지 않고 시스템 인증 세션(Custom Tab/SFSafariViewController)으로 열어야 한다.
-export function isGoogleOAuthUrl(url: string): boolean {
-  return getHost(url) === 'accounts.google.com';
+// (Error 403: disallowed_useragent). /auth/google "시작 경로"로 가는
+// 이동을 통째로 시스템 인증 세션(Custom Tab/SFSafariViewController) 하나로
+// 열어야 한다 — 자사→구글→자사 콜백 도중에 웹뷰로 갈아타면, 로그인 시작 시
+// 웹뷰 쿠키 저장소에 심어둔 state/app 쿠키를 콜백이 못 봐서
+// state_mismatch로 깨진다(웹뷰와 시스템 브라우저는 쿠키 저장소가 다름).
+const NATIVE_OAUTH_START_PATHS = ['https://shoppinglog.store/auth/google'];
+
+export function isNativeOAuthStartUrl(url: string): boolean {
+  return NATIVE_OAUTH_START_PATHS.some((prefix) => url.startsWith(prefix));
 }
 
 // 안드로이드에서 외부 브라우저로 다운로드시킬 문서 확장자.
