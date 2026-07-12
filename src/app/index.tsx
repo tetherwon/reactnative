@@ -1,4 +1,5 @@
 import { useNetInfo } from '@react-native-community/netinfo';
+import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -13,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import type {
   ShouldStartLoadRequest,
+  WebViewMessageEvent,
   WebViewOpenWindowEvent,
 } from 'react-native-webview/lib/WebViewTypes';
 
@@ -23,6 +25,12 @@ import {
   openExternalUrl,
 } from '@/lib/externalLinks';
 import * as haptics from '@/lib/haptics';
+import {
+  KAKAO_BRIDGE_INJECTED_JS,
+  KAKAO_BRIDGE_MESSAGE_TYPE,
+  rejectKakaoLoginScript,
+  resolveKakaoLoginScript,
+} from '@/lib/kakaoBridge';
 import { registerForPushNotificationsAsync } from '@/lib/notifications';
 
 const HOME_URL = 'https://shoppinglog.store';
@@ -121,6 +129,33 @@ export default function HomeScreen() {
     [],
   );
 
+  // 웹의 window.Capacitor.Plugins.KakaoAuth.login() 호출을 postMessage 로 받아
+  // 네이티브 카카오 SDK 로그인을 실행하고, 결과를 웹의 Promise로 되돌려준다.
+  const onMessage = useCallback((event: WebViewMessageEvent) => {
+    let data: { type?: string; id?: string };
+    try {
+      data = JSON.parse(event.nativeEvent.data);
+    } catch {
+      return;
+    }
+    if (data.type !== KAKAO_BRIDGE_MESSAGE_TYPE || !data.id) return;
+    const { id } = data;
+
+    kakaoLogin()
+      .then((result) => {
+        webViewRef.current?.injectJavaScript(
+          resolveKakaoLoginScript(id, result.accessToken),
+        );
+      })
+      .catch((error: { code?: string; message?: string }) => {
+        const message =
+          error?.code === 'E_CANCELLED_OPERATION'
+            ? 'cancelled'
+            : error?.message || 'login_failed';
+        webViewRef.current?.injectJavaScript(rejectKakaoLoginScript(id, message));
+      });
+  }, []);
+
   const onLoadEnd = () => {
     setFirstLoadDone(true);
     isLoaded.current = true;
@@ -144,6 +179,8 @@ export default function HomeScreen() {
           onOpenWindow={onOpenWindow}
           onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
           onLoadEnd={onLoadEnd}
+          onMessage={onMessage}
+          injectedJavaScriptBeforeContentLoaded={KAKAO_BRIDGE_INJECTED_JS}
           onError={() => {
             setFirstLoadDone(true);
             setLoadError(true);
