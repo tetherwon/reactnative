@@ -60,11 +60,10 @@ module.exports = {
     plugins: [
       'expo-router',
       [
+        // 스플래시 이미지 없이 흰 배경만 — 부팅 직후 웹뷰 로딩 화면(스피너)으로
+        // 자연스럽게 이어진다. (OS가 띄우는 시작 화면 자체는 없앨 수 없음)
         'expo-splash-screen',
         {
-          image: './assets/images/splash.png',
-          imageWidth: 1284,
-          resizeMode: 'contain',
           backgroundColor: '#ffffff',
         },
       ],

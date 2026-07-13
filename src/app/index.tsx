@@ -5,8 +5,8 @@ import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   BackHandler,
-  Image,
   Platform,
   StyleSheet,
   ToastAndroid,
@@ -50,9 +50,6 @@ const HOME_URL = 'https://shoppinglog.store';
 // (기본값 "shoppinglog://auth" 는 이 앱 스킴과 다르므로 반드시 덮어써야 함).
 const APP_AUTH_REDIRECT_PREFIX = 'webview://auth';
 
-// 로딩 화면을 네이티브 스플래시와 동일하게 보이도록 같은 이미지를 사용한다.
-// (스플래시 → 로딩 → 홈 전환이 화면 전환처럼 보이지 않게 하기 위함)
-const SPLASH_IMAGE = require('../../assets/images/splash.png');
 
 export default function HomeScreen() {
   const webViewRef = useRef<WebView>(null);
@@ -348,11 +345,7 @@ export default function HomeScreen() {
       </SafeAreaView>
       {!firstLoadDone && !loadError && (
         <View style={styles.loader} pointerEvents="none">
-          <Image
-            source={SPLASH_IMAGE}
-            style={styles.loadingImage}
-            resizeMode="contain"
-          />
+          <ActivityIndicator size="large" color="#1371F9" />
         </View>
       )}
       {(loadError || isOffline) && (
@@ -393,9 +386,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#ffffff',
-  },
-  loadingImage: {
-    width: '100%',
-    height: '100%',
   },
 });
