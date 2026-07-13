@@ -16,10 +16,18 @@ eas env:create --environment production --name GOOGLE_SERVICES_JSON \
   --type file --value ./google-services.json --visibility secret
 ```
 
-- 둘 다 없어도 빌드는 성공한다. 대신 `ADMOB_ANDROID_APP_ID` 없으면 보상형
-  광고(충전소 광고 카드)가, `GOOGLE_SERVICES_JSON` 없으면 네이티브 푸시가
-  비활성 상태로 빌드된다. (app.config.js가 조건부로 플러그인을 뺀다)
+- **`ADMOB_ANDROID_APP_ID`는 production 빌드 필수.** GMA SDK는 매니페스트에
+  유효한 앱 ID가 없으면 광고를 안 불러도 앱 시작 시 "Invalid application ID"
+  크래시를 낸다 — 실제로 이 크래시로 플레이 심사에서 거절당했다("손상된 기능
+  정책: 설치되지만 로드되지 않음"). 그래서 app.config.js가 production 빌드에서
+  앱 ID가 없으면 빌드를 실패시킨다. 개발/프리뷰 빌드는 Google 공식 샘플 앱
+  ID로 대체돼 크래시 없이 동작한다(실광고는 안 나옴).
+- `GOOGLE_SERVICES_JSON`은 없어도 빌드·실행은 되지만 네이티브 푸시가 비활성.
 - 카카오 로그인용 `KAKAO_NATIVE_APP_KEY`는 기존에 설정돼 있음.
+
+AdMob 앱 ID 얻는 곳: AdMob 콘솔(admob.google.com) → 앱 → 쇼핑로그(안드로이드,
+package `store.shoppinglog.app`가 등록돼 있어야 함) → 앱 설정 → "앱 ID"
+(`ca-app-pub-…~…` 형식, 광고 단위 ID와 다르다 — `~`가 들어간 쪽이 앱 ID).
 
 ## 빌드 & 업로드 (매번)
 
