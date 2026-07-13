@@ -22,7 +22,12 @@ type LockState = 'checking' | 'locked' | 'unlocked';
  * 대응에도 도움이 된다.
  */
 export default function AppLockGate({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<LockState>('checking');
+  // 앱 잠금은 iOS 전용 — 안드로이드는 첫 렌더부터 바로 통과시킨다.
+  // ('checking'으로 시작하면 effect가 돌기 전 첫 프레임에 잠금 화면이
+  //  번쩍여서, 스플래시 → 로딩 스피너 사이에 파란 화면이 끼어든다.)
+  const [state, setState] = useState<LockState>(
+    Platform.OS === 'ios' ? 'checking' : 'unlocked',
+  );
   const biometricEnabled = useRef(false);
   const backgroundedAt = useRef<number | null>(null);
   const authInFlight = useRef(false);
