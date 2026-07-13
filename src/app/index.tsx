@@ -27,6 +27,7 @@ import {
   isWebViewNavigable,
   openExternalUrl,
 } from '@/lib/externalLinks';
+import { showRewardedAd } from '@/lib/admob';
 import * as haptics from '@/lib/haptics';
 import {
   KAKAO_BRIDGE_INJECTED_JS,
@@ -34,7 +35,10 @@ import {
   rejectKakaoLoginScript,
   resolveKakaoLoginScript,
 } from '@/lib/kakaoBridge';
-import { registerForPushNotificationsAsync } from '@/lib/notifications';
+import {
+  getFcmDeviceTokenAsync,
+  registerForPushNotificationsAsync,
+} from '@/lib/notifications';
 
 const HOME_URL = 'https://shoppinglog.store';
 
@@ -203,32 +207,74 @@ export default function HomeScreen() {
     [openGoogleOAuth],
   );
 
-  // 웹의 window.Capacitor.Plugins.KakaoAuth.login() 호출을 postMessage 로 받아
-  // 네이티브 카카오 SDK 로그인을 실행하고, 결과를 웹의 Promise로 되돌려준다.
-  const onMessage = useCallback((event: WebViewMessageEvent) => {
-    let data: { type?: string; id?: string };
-    try {
-      data = JSON.parse(event.nativeEvent.data);
-    } catch {
-      return;
-    }
-    if (data.type !== KAKAO_BRIDGE_MESSAGE_TYPE || !data.id) return;
-    const { id } = data;
-
-    kakaoLogin()
-      .then((result) => {
-        webViewRef.current?.injectJavaScript(
-          resolveKakaoLoginScript(id, result.accessToken),
-        );
-      })
-      .catch((error: { code?: string; message?: string }) => {
-        const message =
-          error?.code === 'E_CANCELLED_OPERATION'
-            ? 'cancelled'
-            : error?.message || 'login_failed';
-        webViewRef.current?.injectJavaScript(rejectKakaoLoginScript(id, message));
-      });
+  // 웹(native-push.js)에 FCM 토큰을 넘겨 서버에 등록시킨다.
+  // (RN → 웹 방향 계약: Shopping_log 레포 docs/RN_BRIDGE.md)
+  const sendPushTokenToWeb = useCallback(async () => {
+    const token = await getFcmDeviceTokenAsync();
+    if (!token) return;
+    webViewRef.current?.injectJavaScript(
+      `window.SLNative&&window.SLNative.registerPushToken(` +
+        `${JSON.stringify(token)},${JSON.stringify(Platform.OS)});true;`,
+    );
   }, []);
+
+  // FCM 토큰이 갱신되면 웹에 다시 등록시킨다.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = Notifications.addPushTokenListener(() => {
+      sendPushTokenToWeb();
+    });
+    return () => sub.remove();
+  }, [sendPushTokenToWeb]);
+
+  // 웹 → RN 메시지 라우팅 (window.ReactNativeWebView.postMessage):
+  // - KAKAO_LOGIN_REQUEST: 네이티브 카카오 SDK 로그인 → 웹의 Promise로 응답
+  // - push:getToken: FCM 토큰 발급 → SLNative.registerPushToken 으로 응답
+  // - admob:showRewarded: 보상형 광고 표시 → SLNative.onAdmobResult 로 응답
+  const onMessage = useCallback(
+    (event: WebViewMessageEvent) => {
+      let data: { type?: string; id?: string; adUnit?: unknown; userId?: unknown };
+      try {
+        data = JSON.parse(event.nativeEvent.data);
+      } catch {
+        return;
+      }
+
+      if (data.type === 'push:getToken') {
+        sendPushTokenToWeb();
+        return;
+      }
+
+      if (data.type === 'admob:showRewarded') {
+        const adUnit = typeof data.adUnit === 'string' ? data.adUnit : '';
+        const userId = typeof data.userId === 'string' ? data.userId : '';
+        showRewardedAd(adUnit, userId).then((rewarded) => {
+          webViewRef.current?.injectJavaScript(
+            `window.SLNative&&window.SLNative.onAdmobResult(${rewarded});true;`,
+          );
+        });
+        return;
+      }
+
+      if (data.type !== KAKAO_BRIDGE_MESSAGE_TYPE || !data.id) return;
+      const { id } = data;
+
+      kakaoLogin()
+        .then((result) => {
+          webViewRef.current?.injectJavaScript(
+            resolveKakaoLoginScript(id, result.accessToken),
+          );
+        })
+        .catch((error: { code?: string; message?: string }) => {
+          const message =
+            error?.code === 'E_CANCELLED_OPERATION'
+              ? 'cancelled'
+              : error?.message || 'login_failed';
+          webViewRef.current?.injectJavaScript(rejectKakaoLoginScript(id, message));
+        });
+    },
+    [sendPushTokenToWeb],
+  );
 
   const onLoadEnd = () => {
     setFirstLoadDone(true);

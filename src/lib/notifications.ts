@@ -58,7 +58,7 @@ async function sendTokenToBackend(token: string): Promise<void> {
  *
  * @returns Expo 푸시 토큰 문자열, 실패 시 null
  */
-export async function registerForPushNotificationsAsync(): Promise<string | null> {
+async function ensurePermissionAsync(): Promise<boolean> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: '기본 알림',
@@ -70,7 +70,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
   if (!Device.isDevice) {
     console.warn('[push] 실제 기기에서만 푸시 토큰을 받을 수 있습니다.');
-    return null;
+    return false;
   }
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -81,8 +81,32 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
   if (finalStatus !== 'granted') {
     console.warn('[push] 알림 권한이 거부되었습니다.');
+    return false;
+  }
+  return true;
+}
+
+/**
+ * 웹(native-push.js)의 {type:"push:getToken"} 요청에 응답할 FCM 기기 토큰.
+ * 서버(/api/push/fcm/register → FCM v1 API)가 raw FCM 토큰을 기대하므로
+ * Expo 푸시 토큰이 아니라 getDevicePushTokenAsync()를 쓴다.
+ * FCM은 안드로이드 전용 — iOS는 APNs 토큰이라 서버가 못 쓰므로 null.
+ * google-services.json 없이 빌드된 바이너리에서는 발급이 실패한다 → null.
+ */
+export async function getFcmDeviceTokenAsync(): Promise<string | null> {
+  if (Platform.OS !== 'android') return null;
+  if (!(await ensurePermissionAsync())) return null;
+  try {
+    const { data } = await Notifications.getDevicePushTokenAsync();
+    return typeof data === 'string' && data.length > 0 ? data : null;
+  } catch (e) {
+    console.warn('[push] FCM 기기 토큰 발급 실패:', e);
     return null;
   }
+}
+
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  if (!(await ensurePermissionAsync())) return null;
 
   const projectId = resolveProjectId();
   if (!projectId) {
