@@ -21,13 +21,15 @@ import type {
 } from 'react-native-webview/lib/WebViewTypes';
 
 import ConnectionErrorView from '@/components/ConnectionErrorView';
+import { showRewardedAd } from '@/lib/admob';
+import { consumeOAuthPending, markOAuthPending } from '@/lib/authGate';
 import {
   isNativeOAuthStartUrl,
+  isOAuthWebStartUrl,
   isTrustedHost,
   isWebViewNavigable,
   openExternalUrl,
 } from '@/lib/externalLinks';
-import { showRewardedAd } from '@/lib/admob';
 import * as haptics from '@/lib/haptics';
 import {
   KAKAO_BRIDGE_INJECTED_JS,
@@ -118,13 +120,17 @@ export default function HomeScreen() {
   // 로그인 토큰을 웹뷰의 localStorage에 심고 홈으로 보낸다.
   // (Kakao 웹 폴백 로그인이 성공 시 하는 것과 동일한 방식 — auth.js 참고)
   // 웹뷰가 아직 첫 로드를 마치지 않았으면(딥링크 콜드 스타트) 보관해뒀다가
-  // onLoadEnd 에서 주입한다.
+  // onLoadEnd 에서 주입한다. 같은 토큰이 두 경로(인증 세션 + 라우터 파라미터)로
+  // 겹쳐 들어와도 한 번만 주입한다.
   const pendingAuthToken = useRef<string | null>(null);
+  const lastAppliedToken = useRef<string | null>(null);
   const applyAuthToken = useCallback((token: string) => {
+    if (lastAppliedToken.current === token) return;
     if (!isLoaded.current) {
       pendingAuthToken.current = token;
       return;
     }
+    lastAppliedToken.current = token;
     webViewRef.current?.injectJavaScript(
       `try{localStorage.setItem('sl_token',${JSON.stringify(token)});}catch(e){}` +
         `window.location.href='/';true;`,
@@ -132,11 +138,13 @@ export default function HomeScreen() {
   }, []);
 
   // 로그인 완료 후 백엔드가 webview://auth?token=...&new=... 로 돌려준
-  // 딥링크에서 토큰을 꺼낸다.
+  // 딥링크에서 토큰을 꺼낸다. 인증 세션이 직접 돌려준 결과라 출처가 확실하므로
+  // 게이트 확인 없이 수용하되, 남은 진행 중 표식은 소모해 재사용을 막는다.
   const completeAppAuthRedirect = useCallback(
     (deepLinkUrl: string) => {
       const match = deepLinkUrl.match(/[?&]token=([^&]+)/);
       if (!match) return;
+      consumeOAuthPending();
       applyAuthToken(decodeURIComponent(match[1]));
     },
     [applyAuthToken],
@@ -146,13 +154,17 @@ export default function HomeScreen() {
   // 들어온 경우(로그인 도중 앱 프로세스가 죽었다가 딥링크로 재시작된 경우 등).
   // +native-intent.tsx 가 webview://auth?token=... 을 /?token=... 으로
   // 돌려보내므로 여기서 token 파라미터를 받아 처리한다.
+  // ⚠️ 이 경로의 딥링크는 아무 앱이나 쏠 수 있으므로, 우리가 로그인을 시작했다는
+  // 표식(authGate)이 있을 때만 수용한다 — 없으면 세션 픽세이션 시도로 보고 버린다.
   const { token: authTokenParam } = useLocalSearchParams<{ token?: string }>();
   const handledAuthTokenParam = useRef<string | null>(null);
   useEffect(() => {
     if (typeof authTokenParam !== 'string' || authTokenParam.length === 0) return;
     if (handledAuthTokenParam.current === authTokenParam) return;
     handledAuthTokenParam.current = authTokenParam;
-    applyAuthToken(authTokenParam);
+    consumeOAuthPending().then((accepted) => {
+      if (accepted) applyAuthToken(authTokenParam);
+    });
   }, [authTokenParam, applyAuthToken]);
 
   // 구글은 임베디드 웹뷰 안에서의 OAuth 로그인을 자체 차단한다
@@ -163,13 +175,17 @@ export default function HomeScreen() {
   // 토큰을 넘겨준다.
   const openGoogleOAuth = useCallback(
     (url: string) => {
-      WebBrowser.openAuthSessionAsync(url, APP_AUTH_REDIRECT_PREFIX)
-        .then((result) => {
-          if (result.type === 'success' && result.url) {
-            completeAppAuthRedirect(result.url);
-          }
-        })
-        .catch(() => {});
+      // 인증 세션을 열기 전에 "로그인 진행 중" 표식을 남긴다. 프로세스가
+      // 죽었다 딥링크로 재시작돼도 라우터 경로가 토큰을 수용할 수 있게.
+      markOAuthPending().finally(() => {
+        WebBrowser.openAuthSessionAsync(url, APP_AUTH_REDIRECT_PREFIX)
+          .then((result) => {
+            if (result.type === 'success' && result.url) {
+              completeAppAuthRedirect(result.url);
+            }
+          })
+          .catch(() => {});
+      });
     },
     [completeAppAuthRedirect],
   );
@@ -200,6 +216,9 @@ export default function HomeScreen() {
         openGoogleOAuth(request.url);
         return false;
       }
+      // 웹뷰 안에서 진행되는 소셜 로그인(애플 등)도 마지막에 딥링크로 끝나므로
+      // 표식을 남겨야 라우터 경로가 토큰을 수용한다.
+      if (isOAuthWebStartUrl(request.url)) markOAuthPending();
       if (isWebViewNavigable(request.url)) return true;
       openExternalUrl(request.url);
       return false;
@@ -276,20 +295,29 @@ export default function HomeScreen() {
     [sendPushTokenToWeb],
   );
 
+  // onLoadEnd 는 로드 "실패" 시에도 불린다(onError 직후). 실패한 로드에
+  // 보관해둔 토큰/URL을 주입하면 에러 페이지에 떨어져 그대로 소실되므로,
+  // 성공한 로드에서만 소비하고 실패 시엔 다음 로드까지 보관한다.
+  const lastLoadFailed = useRef(false);
   const onLoadEnd = () => {
     setFirstLoadDone(true);
+    const failed = lastLoadFailed.current;
+    lastLoadFailed.current = false;
     isLoaded.current = true;
+    if (failed) return;
+    // 토큰을 먼저 심는다 — 아래 pendingUrl 이동이 최종 목적지가 되더라도
+    // localStorage 저장은 유지되므로 둘 다 살릴 수 있다.
+    if (pendingAuthToken.current) {
+      const token = pendingAuthToken.current;
+      pendingAuthToken.current = null;
+      applyAuthToken(token);
+    }
     if (pendingUrl.current) {
       const url = pendingUrl.current;
       pendingUrl.current = null;
       webViewRef.current?.injectJavaScript(
         `window.location.href = ${JSON.stringify(url)}; true;`,
       );
-    }
-    if (pendingAuthToken.current) {
-      const token = pendingAuthToken.current;
-      pendingAuthToken.current = null;
-      applyAuthToken(token);
     }
   };
 
@@ -307,6 +335,7 @@ export default function HomeScreen() {
           onMessage={onMessage}
           injectedJavaScriptBeforeContentLoaded={KAKAO_BRIDGE_INJECTED_JS}
           onError={() => {
+            lastLoadFailed.current = true;
             setFirstLoadDone(true);
             setLoadError(true);
             haptics.error();

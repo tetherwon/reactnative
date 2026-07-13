@@ -52,6 +52,14 @@ export function isNativeOAuthStartUrl(url: string): boolean {
   return NATIVE_OAUTH_START_PATHS.some((prefix) => url.startsWith(prefix));
 }
 
+// 웹뷰 안에서 진행되는 소셜 로그인 플로우(애플, 카카오 웹 폴백 등)의 시작/콜백
+// 경로. 이 플로우는 마지막에 webview://auth 딥링크로 끝나는데, 딥링크 토큰은
+// 앱이 로그인을 시작했다는 표식(authGate)이 있어야만 수용되므로, 이 경로로의
+// 이동을 볼 때 표식을 남겨야 한다.
+export function isOAuthWebStartUrl(url: string): boolean {
+  return url.startsWith('https://shoppinglog.store/auth/');
+}
+
 // 안드로이드에서 외부 브라우저로 다운로드시킬 문서 확장자.
 // (이미지(jpg/png)는 쿼리스트링 오탐 위험이 있어 제외 — 웹뷰에서 봐도 무방)
 const DOWNLOAD_EXT = /\.(pdf|xlsx?|csv|zip|hwp|docx?|pptx?)(\?|#|$)/i;
