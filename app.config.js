@@ -2,22 +2,18 @@
 // EAS 환경변수(KAKAO_NATIVE_APP_KEY)로 주입한다. (app.json 대신 app.config.js 사용 이유)
 const KAKAO_NATIVE_APP_KEY = process.env.KAKAO_NATIVE_APP_KEY || '';
 
-// AdMob 앱 ID (ca-app-pub-XXXX~YYYY, AdMob 콘솔 → 앱 설정). EAS 환경변수로 주입.
+// AdMob 앱 ID (ca-app-pub-XXXX~YYYY, AdMob 콘솔 → 앱 설정).
+// AdMob 앱 ID는 비밀값이 아니라 어차피 빌드된 앱에 그대로 박히는 공개값이므로
+// 여기에 직접 등록한다(env로 덮어쓰기 가능). 이렇게 하면 EAS 환경변수를 깜빡
+// 잊어 "Invalid application ID" 크래시로 심사 거절되던 위험이 원천 차단된다.
 //
-// ⚠️ GMA SDK는 앱이 광고를 안 불러도 매니페스트에 유효한 앱 ID가 없으면
-// "Invalid application ID"를 던지며 앱 시작 자체를 죽인다. 실제로 이 크래시로
-// 플레이스토어 심사에서 거절당한 적 있음("설치되지만 로드되지 않음").
-// 그래서: production 빌드는 앱 ID 없이는 빌드를 실패시키고(깨진 앱 출고 방지),
-// 그 외(개발/프리뷰)는 Google 공식 샘플 앱 ID로 대체해 크래시만 막는다.
-const ADMOB_ANDROID_APP_ID = process.env.ADMOB_ANDROID_APP_ID || '';
-const ADMOB_SAMPLE_APP_ID = 'ca-app-pub-3940256099942544~3347511713'; // Google 공식 샘플
-if (process.env.EAS_BUILD_PROFILE === 'production' && !ADMOB_ANDROID_APP_ID) {
-  throw new Error(
-    'ADMOB_ANDROID_APP_ID 가 설정되지 않았습니다. 이대로 빌드하면 앱이 시작 시 ' +
-      '크래시합니다(플레이 심사 거절 사유). EAS production 환경변수에 AdMob 앱 ID를 ' +
-      '추가한 뒤 다시 빌드하세요 — 절차: docs/RELEASE.md',
-  );
-}
+// ⚠️ iOS는 별도의 iOS용 AdMob 앱 ID가 필요하다. AdMob 콘솔에서 iOS 앱을 따로
+// 만들면 다른 ~접미사의 ID가 나온다. 아직 iOS 앱을 안 만들었다면 아래 iOS 값을
+// 실제 iOS 앱 ID로 바꿔야 한다(현재는 안드로이드와 동일 값 — iOS 빌드 시 교체 필요).
+const ADMOB_ANDROID_APP_ID =
+  process.env.ADMOB_ANDROID_APP_ID || 'ca-app-pub-1856287061134936~8519744143';
+const ADMOB_IOS_APP_ID =
+  process.env.ADMOB_IOS_APP_ID || 'ca-app-pub-1856287061134936~8519744143';
 
 // Firebase(FCM) 설정 파일. 퍼블릭 레포라 파일을 커밋하지 않고 EAS의 file 타입
 // 환경변수(GOOGLE_SERVICES_JSON)로 경로를 주입한다. 미설정이면 로컬의
@@ -115,7 +111,7 @@ module.exports = {
       ],
       [
         'react-native-google-mobile-ads',
-        { androidAppId: ADMOB_ANDROID_APP_ID || ADMOB_SAMPLE_APP_ID },
+        { androidAppId: ADMOB_ANDROID_APP_ID, iosAppId: ADMOB_IOS_APP_ID },
       ],
     ],
     experiments: {
