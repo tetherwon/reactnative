@@ -401,8 +401,8 @@ const styles = StyleSheet.create({
   loadingTagline: {
     marginTop: 6,
     color: '#ffffff',
-    fontSize: 20,
-    fontFamily: 'Pretendard-ExtraBold',
+    fontSize: 22,
+    fontFamily: 'Pretendard-Black',
     letterSpacing: -0.3,
   },
 });
