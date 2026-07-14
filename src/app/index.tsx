@@ -399,9 +399,10 @@ const styles = StyleSheet.create({
     height: 200,
   },
   loadingTagline: {
-    marginTop: 4,
+    marginTop: 6,
     color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 18,
+    fontFamily: 'Pretendard-SemiBold',
+    letterSpacing: -0.2,
   },
 });
