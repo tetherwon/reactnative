@@ -254,10 +254,25 @@ export default function HomeScreen() {
   // - admob:showRewarded: 보상형 광고 표시 → SLNative.onAdmobResult 로 응답
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
-      let data: { type?: string; id?: string; adUnit?: unknown; userId?: unknown };
+      let data: {
+        type?: string;
+        id?: string;
+        adUnit?: unknown;
+        userId?: unknown;
+        url?: unknown;
+      };
       try {
         data = JSON.parse(event.nativeEvent.data);
       } catch {
+        return;
+      }
+
+      // 외부 쇼핑몰 링크는 웹뷰 안에서 열면 제휴 추적·적립이 끊긴다.
+      // 웹(SLUtils.openOutbound)이 최종 URL을 넘겨주면 시스템 브라우저/외부
+      // 앱으로 연다. (웹 계약: {type:'openExternal', url})
+      if (data.type === 'openExternal') {
+        const url = typeof data.url === 'string' ? data.url : '';
+        if (url) openExternalUrl(url);
         return;
       }
 
