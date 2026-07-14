@@ -5,10 +5,11 @@ import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   BackHandler,
+  Image,
   Platform,
   StyleSheet,
+  Text,
   ToastAndroid,
   View,
 } from 'react-native';
@@ -49,6 +50,10 @@ const HOME_URL = 'https://shoppinglog.store';
 // 하고, 백엔드 환경변수 APP_AUTH_REDIRECT 도 이 값으로 맞춰야 한다
 // (기본값 "shoppinglog://auth" 는 이 앱 스킴과 다르므로 반드시 덮어써야 함).
 const APP_AUTH_REDIRECT_PREFIX = 'webview://auth';
+
+// 웹뷰 로딩 화면을 네이티브 스플래시(파란 배경 + 곰돌이)와 이어지게 하기 위해
+// 같은 아이콘을 쓴다. icon.png 배경색(#1371F9)이 로딩 배경과 같아 이음새 없음.
+const LOADING_BEAR = require('../../assets/images/icon.png');
 
 
 export default function HomeScreen() {
@@ -345,7 +350,8 @@ export default function HomeScreen() {
       </SafeAreaView>
       {!firstLoadDone && !loadError && (
         <View style={styles.loader} pointerEvents="none">
-          <ActivityIndicator size="large" color="#1371F9" />
+          <Image source={LOADING_BEAR} style={styles.loadingBear} resizeMode="contain" />
+          <Text style={styles.loadingTagline}>쇼핑 적립은 쇼핑로그에서</Text>
         </View>
       )}
       {(loadError || isOffline) && (
@@ -385,6 +391,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    // 네이티브 스플래시와 동일한 파란 배경 → 스플래시→로딩 전환이 이어짐
+    backgroundColor: '#1371F9',
+  },
+  loadingBear: {
+    width: 200,
+    height: 200,
+  },
+  loadingTagline: {
+    marginTop: 4,
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
