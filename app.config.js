@@ -68,16 +68,15 @@ module.exports = {
     plugins: [
       'expo-router',
       [
-        // "이미지 없는 스플래시"가 목표지만, expo-splash-screen 은 image 를
-        // 빼면 생성된 테마가 존재하지 않는 drawable(splashscreen_logo)을
-        // 참조해서 리소스 링킹이 깨진다(processReleaseResources 실패).
-        // 그래서 완전 투명 PNG를 넣는다 — 빌드가 성공하고 화면상으론
-        // 순수 흰 배경이라 부팅 직후 웹뷰 로딩 스피너로 자연스럽게 이어진다.
+        // 파란 배경(#1371F9) 가운데 곰돌이 아이콘. icon.png 코너색이 정확히
+        // #1371F9 라, 이미지 배경과 splash backgroundColor 가 일치해 이음새
+        // 없이 "파란 화면 + 중앙 곰돌이"로 보인다(런처 아이콘과도 통일).
         'expo-splash-screen',
         {
-          image: './assets/images/splash-blank.png',
-          imageWidth: 100,
-          backgroundColor: '#ffffff',
+          image: './assets/images/icon.png',
+          imageWidth: 288,
+          resizeMode: 'contain',
+          backgroundColor: '#1371F9',
         },
       ],
       [
