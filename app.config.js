@@ -23,15 +23,27 @@ const GOOGLE_SERVICES_JSON =
   process.env.GOOGLE_SERVICES_JSON ||
   (fs.existsSync('./google-services.json') ? './google-services.json' : '');
 
+// 애드팝콘 오퍼월 매체 키 · 해시 키 (AdPopcorn 파트너스 대시보드 발급).
+// EXPO_PUBLIC_ 접두사 — Android는 이 값을 여기(app.config.js, Node 시점)에서
+// 읽어 plugins/withAdpopcorn.js로 AndroidManifest.xml meta-data에 주입하고,
+// iOS는 Metro가 같은 값을 JS 번들에 그대로 인라인해 src/lib/adpopcorn.ts의
+// setAppKey() 호출이 process.env.EXPO_PUBLIC_* 로 직접 읽는다. 두 플랫폼 다
+// 결국 클라이언트(APK/IPA) 안에 평문으로 들어가는 값이라(매니페스트는 apktool로
+// 누구나 추출 가능) EAS에는 sensitive가 아닌 plaintext로 등록해도 된다 —
+// 절차: docs/RELEASE.md. 미설정이어도 오퍼월 카드가 안 열릴 뿐 앱 크래시는
+// 없어 ADMOB_ANDROID_APP_ID와 달리 빌드를 막지 않는다.
+const ADPOPCORN_APP_KEY = process.env.EXPO_PUBLIC_ADPOPCORN_APP_KEY || '';
+const ADPOPCORN_HASH_KEY = process.env.EXPO_PUBLIC_ADPOPCORN_HASH_KEY || '';
+
 module.exports = {
   expo: {
     name: '쇼핑로그',
     slug: 'webview',
     owner: 'shoppinglog',
-    // 1.1.0: AdMob·FCM 네이티브 모듈 추가. runtimeVersion(appVersion 정책)이
-    // 갈리므로 이 버전의 JS(OTA)는 1.1.0 바이너리에만 배포된다 — 네이티브
-    // 모듈이 없는 구버전(1.0.0) 앱이 이 코드를 받아 죽는 일을 막는다.
-    version: '1.1.0',
+    // 1.2.0: 애드팝콘 오퍼월 네이티브 모듈 추가. runtimeVersion(appVersion 정책)이
+    // 갈리므로 이 버전의 JS(OTA)는 1.2.0 바이너리에만 배포된다 — 네이티브
+    // 모듈이 없는 구버전 앱이 이 코드를 받아 죽는 일을 막는다.
+    version: '1.2.0',
     runtimeVersion: {
       policy: 'appVersion',
     },
@@ -115,6 +127,10 @@ module.exports = {
       [
         'react-native-google-mobile-ads',
         { androidAppId: ADMOB_ANDROID_APP_ID, iosAppId: ADMOB_IOS_APP_ID },
+      ],
+      [
+        './plugins/withAdpopcorn',
+        { appKey: ADPOPCORN_APP_KEY, hashKey: ADPOPCORN_HASH_KEY },
       ],
     ],
     experiments: {

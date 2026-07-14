@@ -23,6 +23,7 @@ import type {
 
 import ConnectionErrorView from '@/components/ConnectionErrorView';
 import { showRewardedAd } from '@/lib/admob';
+import { ensureAdpopcornListeners, openOfferwall as openAdpopcornOfferwall } from '@/lib/adpopcorn';
 import { consumeOAuthPending, markOAuthPending } from '@/lib/authGate';
 import {
   isNativeOAuthStartUrl,
@@ -86,6 +87,16 @@ export default function HomeScreen() {
 
   useEffect(() => {
     registerForPushNotificationsAsync();
+  }, []);
+
+  // 오퍼월이 닫히면 웹에 알려 잔액을 갱신시킨다. 리스너는 앱 생애주기 동안 1회만 등록.
+  // (RN → 웹 방향 계약: Shopping_log 레포 docs/RN_BRIDGE.md)
+  useEffect(() => {
+    ensureAdpopcornListeners(() => {
+      webViewRef.current?.injectJavaScript(
+        'window.SLNative&&window.SLNative.onAdpopcornClosed();true;',
+      );
+    });
   }, []);
 
   const lastResponse = Notifications.useLastNotificationResponse();
@@ -252,6 +263,7 @@ export default function HomeScreen() {
   // - KAKAO_LOGIN_REQUEST: 네이티브 카카오 SDK 로그인 → 웹의 Promise로 응답
   // - push:getToken: FCM 토큰 발급 → SLNative.registerPushToken 으로 응답
   // - admob:showRewarded: 보상형 광고 표시 → SLNative.onAdmobResult 로 응답
+  // - adpopcorn:openOfferwall: 오퍼월 열기 → 닫히면 SLNative.onAdpopcornClosed 호출
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
       let data: { type?: string; id?: string; adUnit?: unknown; userId?: unknown };
@@ -274,6 +286,12 @@ export default function HomeScreen() {
             `window.SLNative&&window.SLNative.onAdmobResult(${rewarded});true;`,
           );
         });
+        return;
+      }
+
+      if (data.type === 'adpopcorn:openOfferwall') {
+        const userId = typeof data.userId === 'string' ? data.userId : '';
+        openAdpopcornOfferwall(userId);
         return;
       }
 

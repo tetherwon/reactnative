@@ -14,6 +14,15 @@ eas env:create --environment production --name ADMOB_ANDROID_APP_ID \
 # (package: store.shoppinglog.app) 에서 google-services.json 다운로드
 eas env:create --environment production --name GOOGLE_SERVICES_JSON \
   --type file --value ./google-services.json --visibility secret
+
+# 애드팝콘 오퍼월 매체 키 · 해시 키 — AdPopcorn 파트너스 대시보드에서 발급.
+# EXPO_PUBLIC_ 접두사 필수(Metro가 JS 번들에 그대로 인라인해야 iOS에서
+# setAppKey()가 동작). 어차피 APK/IPA 안에 평문으로 들어가는 값이라(Android는
+# AndroidManifest.xml meta-data라 apktool로 누구나 추출 가능) plaintext로 등록.
+eas env:create --environment production --name EXPO_PUBLIC_ADPOPCORN_APP_KEY \
+  --value "매체 키" --visibility plaintext
+eas env:create --environment production --name EXPO_PUBLIC_ADPOPCORN_HASH_KEY \
+  --value "해시 키" --visibility plaintext
 ```
 
 - **`ADMOB_ANDROID_APP_ID`는 production 빌드 필수.** GMA SDK는 매니페스트에
@@ -23,6 +32,10 @@ eas env:create --environment production --name GOOGLE_SERVICES_JSON \
   앱 ID가 없으면 빌드를 실패시킨다. 개발/프리뷰 빌드는 Google 공식 샘플 앱
   ID로 대체돼 크래시 없이 동작한다(실광고는 안 나옴).
 - `GOOGLE_SERVICES_JSON`은 없어도 빌드·실행은 되지만 네이티브 푸시가 비활성.
+- `EXPO_PUBLIC_ADPOPCORN_APP_KEY`/`HASH_KEY`가 없어도 빌드는 되지만 오퍼월
+  카드가 열리지 않는다(AdMob과 달리 크래시는 없음). 서버 쪽 포스트백 검증용
+  `ADPOPCORN_HASH_KEY`(Railway env, Shopping_log 레포)에도 **같은 해시 키**를
+  넣어야 리워드 지급이 통과한다.
 - 카카오 로그인용 `KAKAO_NATIVE_APP_KEY`는 기존에 설정돼 있음.
 
 AdMob 앱 ID 얻는 곳: AdMob 콘솔(admob.google.com) → 앱 → 쇼핑로그(안드로이드,
@@ -49,6 +62,10 @@ eas submit --platform android --latest
 2. 광고 시청 → 수 초 내 잔액 +1캐시 (Google SSV 콜백 경유,
    Shopping_log `docs/RN_BRIDGE.md` 참고)
 3. 알림 권한 허용 → 서버에서 푸시 발송 → 수신·탭 이동 확인
+4. (관리자 계정) 충전소 진입 → 오퍼월 카드 열기 → 캠페인 목록이 뜨는지,
+   닫았을 때 잔액이 갱신되는지 확인. 실제 리워드 지급은 애드팝콘이 보내는
+   포스트백(`/api/adpopcorn/postback`)이 처리하므로 캠페인 완료까지 해봐야
+   확인 가능 — Railway 로그에서 `adpopcorn` 검색
 
 ## 버전/OTA 규칙
 
