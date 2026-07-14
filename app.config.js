@@ -121,6 +121,23 @@ module.exports = {
         {
           android: {
             extraMavenRepos: ['https://devrepo.kakao.com/nexus/content/groups/public/'],
+            // R8 최적화(코드/리소스 축소) — 플레이 콘솔 "앱이 최적화되지 않음" 경고 해소.
+            // 앱 크기·메모리 감소. 단, 리플렉션 기반 SDK는 아래 keep 규칙으로 보호한다
+            // (R8이 클래스명을 바꾸거나 제거하면 카카오/애드팝콘이 런타임 크래시).
+            enableMinifyInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
+            extraProguardRules: [
+              '# 카카오 로그인 SDK (리플렉션)',
+              '-keep class com.kakao.** { *; }',
+              '-keep class com.kakaoenterprise.** { *; }',
+              '-dontwarn com.kakao.**',
+              '# 애드팝콘(IGAWorks) 오퍼월 SDK',
+              '-keep class com.igaworks.** { *; }',
+              '-keep class com.adpopcorn.** { *; }',
+              '-dontwarn com.igaworks.**',
+              '# JavascriptInterface(웹뷰 브리지) 메서드 보존',
+              '-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }',
+            ].join('\n'),
           },
         },
       ],
