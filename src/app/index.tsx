@@ -351,7 +351,7 @@ export default function HomeScreen() {
       {!firstLoadDone && !loadError && (
         <View style={styles.loader} pointerEvents="none">
           <Image source={LOADING_BEAR} style={styles.loadingBear} resizeMode="contain" />
-          <Text style={styles.loadingTagline}>쇼핑 적립은 쇼핑로그에서</Text>
+          <Text style={styles.loadingTagline}>쇼핑적립은 쇼핑로그</Text>
         </View>
       )}
       {(loadError || isOffline) && (
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     color: '#ffffff',
     fontSize: 20,
-    fontFamily: 'Pretendard-Bold',
+    fontFamily: 'Pretendard-ExtraBold',
     letterSpacing: -0.3,
   },
 });

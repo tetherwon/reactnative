@@ -70,7 +70,7 @@ module.exports = {
       // Pretendard(웹과 동일 브랜드 서체)를 네이티브에 임베드해 로딩 화면
       // 태그라인 등 네이티브 Text에서 fontFamily:'Pretendard-SemiBold'로 사용.
       // config plugin 방식이라 빌드 시 포함돼 첫 화면부터 지연 없이 적용된다.
-      ['expo-font', { fonts: ['./assets/fonts/Pretendard-SemiBold.otf', './assets/fonts/Pretendard-Bold.otf'] }],
+      ['expo-font', { fonts: ['./assets/fonts/Pretendard-ExtraBold.otf'] }],
       [
         // 파란 배경(#1371F9) 가운데 곰돌이 아이콘. icon.png 코너색이 정확히
         // #1371F9 라, 이미지 배경과 splash backgroundColor 가 일치해 이음새
