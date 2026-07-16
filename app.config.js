@@ -23,6 +23,18 @@ const GOOGLE_SERVICES_JSON =
   process.env.GOOGLE_SERVICES_JSON ||
   (fs.existsSync('./google-services.json') ? './google-services.json' : '');
 
+// FCM 설정이 빠진 채로 빌드되면 네이티브 푸시가 조용히 죽는다(토큰 발급 실패 →
+// 서버 등록 0대 → 앱 알림 안 감). 원인을 조기에 잡도록 빌드 로그에 크게 경고한다.
+// 해결: eas env:create --environment <env> --name GOOGLE_SERVICES_JSON --type file
+//       --value ./google-services.json --visibility secret  (docs/RELEASE.md 참고)
+if (!GOOGLE_SERVICES_JSON) {
+  console.warn(
+    '\n[⚠ FCM] GOOGLE_SERVICES_JSON 미설정 — 이 빌드는 Firebase 설정 없이 만들어져 ' +
+      '네이티브 푸시(FCM)가 동작하지 않습니다. EAS 파일 환경변수를 등록한 뒤 ' +
+      '새 바이너리를 빌드하세요. (docs/RELEASE.md)\n',
+  );
+}
+
 // 애드팝콘 오퍼월 매체 키 · 해시 키 (AdPopcorn 파트너스 대시보드 발급).
 // EXPO_PUBLIC_ 접두사 — Android는 이 값을 여기(app.config.js, Node 시점)에서
 // 읽어 plugins/withAdpopcorn.js로 AndroidManifest.xml meta-data에 주입하고,
