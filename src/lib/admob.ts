@@ -11,6 +11,8 @@
  * 돌려준다 → 웹은 "광고를 불러오지 못했어요"로 처리.
  */
 
+import { ensureTrackingPermissionAsync } from './tracking';
+
 type GoogleMobileAds = typeof import('react-native-google-mobile-ads');
 
 let ads: GoogleMobileAds | null | undefined;
@@ -40,7 +42,10 @@ export function showRewardedAd(adUnit: string, userId: string): Promise<boolean>
   if (!mod || !adUnit) return Promise.resolve(false);
 
   if (!initPromise) {
-    initPromise = mod.default().initialize().catch(() => {});
+    // SDK 초기화 전에 ATT 권한을 먼저 물어야 초기 광고 요청부터 IDFA가 실린다.
+    initPromise = ensureTrackingPermissionAsync()
+      .then(() => mod.default().initialize())
+      .catch(() => {});
   }
 
   return initPromise.then(

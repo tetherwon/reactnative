@@ -86,22 +86,79 @@ async function ensurePermissionAsync(): Promise<boolean> {
   return true;
 }
 
+// iOS의 FCM 등록 토큰은 Firebase Messaging SDK로만 발급된다 —
+// expo-notifications의 getDevicePushTokenAsync()는 iOS에서 raw APNs 토큰을
+// 돌려주는데, 서버(FCM v1 API)는 그걸 못 쓴다. admob.ts와 동일하게, 모듈이
+// 없는 바이너리(구버전 앱·GoogleService-Info.plist 없는 빌드)에서 import
+// 시점에 죽지 않도록 require를 try/catch로 감싼다.
+type FirebaseMessaging = typeof import('@react-native-firebase/messaging');
+
+let fbMessaging: FirebaseMessaging | null | undefined;
+
+function getFirebaseMessaging(): FirebaseMessaging | null {
+  if (fbMessaging === undefined) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      fbMessaging = require('@react-native-firebase/messaging') as FirebaseMessaging;
+    } catch {
+      fbMessaging = null;
+    }
+  }
+  return fbMessaging;
+}
+
 /**
  * 웹(native-push.js)의 {type:"push:getToken"} 요청에 응답할 FCM 기기 토큰.
  * 서버(/api/push/fcm/register → FCM v1 API)가 raw FCM 토큰을 기대하므로
- * Expo 푸시 토큰이 아니라 getDevicePushTokenAsync()를 쓴다.
- * FCM은 안드로이드 전용 — iOS는 APNs 토큰이라 서버가 못 쓰므로 null.
- * google-services.json 없이 빌드된 바이너리에서는 발급이 실패한다 → null.
+ * Expo 푸시 토큰이 아니라 FCM 등록 토큰을 발급한다.
+ * - Android: expo-notifications의 getDevicePushTokenAsync() (= FCM 토큰).
+ *   google-services.json 없이 빌드된 바이너리에서는 발급이 실패한다 → null.
+ * - iOS: Firebase Messaging의 getToken(). GoogleService-Info.plist 없이
+ *   빌드됐거나(FIRApp 미초기화) 시뮬레이터면 발급이 실패한다 → null.
  */
 export async function getFcmDeviceTokenAsync(): Promise<string | null> {
-  if (Platform.OS !== 'android') return null;
   if (!(await ensurePermissionAsync())) return null;
+
+  if (Platform.OS === 'android') {
+    try {
+      const { data } = await Notifications.getDevicePushTokenAsync();
+      return typeof data === 'string' && data.length > 0 ? data : null;
+    } catch (e) {
+      console.warn('[push] FCM 기기 토큰 발급 실패:', e);
+      return null;
+    }
+  }
+
+  const m = getFirebaseMessaging();
+  if (!m) return null;
   try {
-    const { data } = await Notifications.getDevicePushTokenAsync();
-    return typeof data === 'string' && data.length > 0 ? data : null;
+    const messaging = m.getMessaging();
+    // APNs 등록이 선행돼야 FCM 토큰이 나온다(이미 등록돼 있으면 no-op).
+    await m.registerDeviceForRemoteMessages(messaging);
+    const token = await m.getToken(messaging);
+    return typeof token === 'string' && token.length > 0 ? token : null;
   } catch (e) {
     console.warn('[push] FCM 기기 토큰 발급 실패:', e);
     return null;
+  }
+}
+
+/**
+ * FCM 토큰 갱신 구독. 해제 함수를 돌려준다.
+ * (index.tsx가 갱신 시 웹에 재등록시키는 데 쓴다)
+ */
+export function addFcmTokenRefreshListener(onRefresh: () => void): () => void {
+  if (Platform.OS === 'android') {
+    const sub = Notifications.addPushTokenListener(onRefresh);
+    return () => sub.remove();
+  }
+  const m = getFirebaseMessaging();
+  if (!m) return () => {};
+  try {
+    return m.onTokenRefresh(m.getMessaging(), onRefresh);
+  } catch {
+    // FIRApp 미초기화(plist 없는 빌드) 등 — 구독 없이 진행
+    return () => {};
   }
 }
 

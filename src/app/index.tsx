@@ -2,6 +2,7 @@ import { useNetInfo } from '@react-native-community/netinfo';
 import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -40,6 +41,7 @@ import {
   resolveKakaoLoginScript,
 } from '@/lib/kakaoBridge';
 import {
+  addFcmTokenRefreshListener,
   getFcmDeviceTokenAsync,
   registerForPushNotificationsAsync,
 } from '@/lib/notifications';
@@ -264,11 +266,9 @@ export default function HomeScreen() {
 
   // FCM 토큰이 갱신되면 웹에 다시 등록시킨다.
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    const sub = Notifications.addPushTokenListener(() => {
+    return addFcmTokenRefreshListener(() => {
       sendPushTokenToWeb();
     });
-    return () => sub.remove();
   }, [sendPushTokenToWeb]);
 
   // 웹 → RN 메시지 라우팅 (window.ReactNativeWebView.postMessage):
@@ -376,10 +376,16 @@ export default function HomeScreen() {
           domStorageEnabled
           javaScriptEnabled
           allowsInlineMediaPlayback
+          // iOS 뒤로가기 수단 — Android는 하드웨어 백 버튼(위 BackHandler)이
+          // 있지만 iOS는 이 스와이프 제스처가 유일하다.
+          allowsBackForwardNavigationGestures
         />
       </SafeAreaView>
       {!firstLoadDone && !loadError && (
         <View style={styles.loader} pointerEvents="none">
+          {/* 파란 배경 위라 라이트 모드의 검은 상태바 아이콘이 안 보인다.
+              로딩 동안만 밝은 아이콘으로 덮고, 사라지면 _layout의 auto로 복귀. */}
+          <StatusBar style="light" />
           <Image source={LOADING_BEAR} style={styles.loadingBear} resizeMode="contain" />
           <Text style={styles.loadingTagline}>쇼핑적립은 쇼핑로그</Text>
         </View>

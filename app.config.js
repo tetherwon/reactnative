@@ -16,12 +16,30 @@ const ADMOB_IOS_APP_ID =
   process.env.ADMOB_IOS_APP_ID || 'ca-app-pub-1856287061134936~8519744143';
 
 // Firebase(FCM) 설정 파일. 퍼블릭 레포라 파일을 커밋하지 않고 EAS의 file 타입
-// 환경변수(GOOGLE_SERVICES_JSON)로 경로를 주입한다. 미설정이면 로컬의
-// google-services.json을 쓰고, 그것도 없으면 FCM 없이 빌드된다(네이티브 푸시 미동작).
+// 환경변수(GOOGLE_SERVICES_JSON / GOOGLE_SERVICES_INFO_PLIST)로 경로를 주입한다.
+// 미설정이면 로컬 파일을 쓰고, 그것도 없으면 FCM 없이 빌드된다(네이티브 푸시 미동작).
 const fs = require('fs');
 const GOOGLE_SERVICES_JSON =
   process.env.GOOGLE_SERVICES_JSON ||
   (fs.existsSync('./google-services.json') ? './google-services.json' : '');
+// iOS FCM용 (Firebase 콘솔 → iOS 앱 등록 후 다운로드, APNs 인증 키 업로드 필수).
+const GOOGLE_SERVICES_INFO_PLIST =
+  process.env.GOOGLE_SERVICES_INFO_PLIST ||
+  (fs.existsSync('./GoogleService-Info.plist') ? './GoogleService-Info.plist' : '');
+
+// @react-native-firebase/app 플러그인은 iOS·Android 설정 파일이 "둘 다" 없으면
+// prebuild 단계에서 throw 한다. 파일이 다 준비된 빌드에서만 플러그인을 켠다
+// (플러그인이 꺼져도 pod은 설치되므로 JS 쪽 호출은 try/catch로 격리돼 있다 —
+// src/lib/notifications.ts 참고). iOS FCM을 쓰려면 EAS에 두 env 모두 등록할 것.
+const FIREBASE_CONFIGURED = Boolean(GOOGLE_SERVICES_JSON && GOOGLE_SERVICES_INFO_PLIST);
+
+if (!KAKAO_NATIVE_APP_KEY) {
+  // 키가 비면 iOS URL 스킴이 "kakao"(접미사 없음)로 등록돼 카카오 네이티브
+  // 로그인이 조용히 깨진다. 빌드 로그에서 바로 보이도록 경고를 남긴다.
+  console.warn(
+    '[app.config] KAKAO_NATIVE_APP_KEY 미설정 — 카카오 네이티브 로그인이 동작하지 않는 빌드가 됩니다.',
+  );
+}
 
 // 애드팝콘 오퍼월 매체 키 · 해시 키 (AdPopcorn 파트너스 대시보드 발급).
 // EXPO_PUBLIC_ 접두사 — Android는 이 값을 여기(app.config.js, Node 시점)에서
@@ -40,10 +58,11 @@ module.exports = {
     name: '쇼핑로그',
     slug: 'webview',
     owner: 'shoppinglog',
-    // 1.2.0: 애드팝콘 오퍼월 네이티브 모듈 추가. runtimeVersion(appVersion 정책)이
-    // 갈리므로 이 버전의 JS(OTA)는 1.2.0 바이너리에만 배포된다 — 네이티브
-    // 모듈이 없는 구버전 앱이 이 코드를 받아 죽는 일을 막는다.
-    version: '1.2.0',
+    // 1.3.0: Firebase Messaging(iOS FCM)·expo-tracking-transparency(ATT) 네이티브
+    // 모듈 추가. runtimeVersion(appVersion 정책)이 갈리므로 이 버전의 JS(OTA)는
+    // 1.3.0 바이너리에만 배포된다 — 네이티브 모듈이 없는 구버전 앱이 이 코드를
+    // 받아 죽는 일을 막는다. (1.2.0: 애드팝콘 오퍼월 추가)
+    version: '1.3.0',
     runtimeVersion: {
       policy: 'appVersion',
     },
@@ -56,11 +75,35 @@ module.exports = {
     userInterfaceStyle: 'automatic',
     ios: {
       bundleIdentifier: 'store.shoppinglog.app',
-      supportsTablet: true,
+      // iPhone 전용 — 웹 레이아웃이 태블릿 검증돼 있지 않고, true면 iPad
+      // 스크린샷 제출·심사 대상이 늘어난다. (iPad에서도 확대 모드로 실행은 가능)
+      supportsTablet: false,
+      ...(GOOGLE_SERVICES_INFO_PLIST ? { googleServicesFile: GOOGLE_SERVICES_INFO_PLIST } : {}),
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription: '상품 사진을 촬영해 업로드하기 위해 카메라를 사용합니다.',
         NSPhotoLibraryUsageDescription: '상품 사진을 선택해 업로드하기 위해 사진 보관함에 접근합니다.',
+        // 결제(앱카드·ISP)·본인인증(PASS) 앱 스킴. iOS는 여기 선언된 스킴만
+        // canOpenURL이 true를 돌려준다(열기 자체는 선언 없이도 가능 —
+        // src/lib/externalLinks.ts 참고). PG 연동 가이드의 표준 목록 기준이며,
+        // 카카오 로그인용 스킴(kakaokompassauth 등)은 카카오 플러그인이 따로 넣는다.
+        LSApplicationQueriesSchemes: [
+          // 간편결제·메신저
+          'kakaotalk', 'supertoss', 'payco', 'lpayapp', 'lmslpay',
+          // ISP/공용 결제
+          'ispmobile', 'kftc-bankpay', 'cloudpay',
+          // 카드사 앱카드
+          'kb-acp', 'liivbank', 'newliiv',
+          'shinhan-sr-ansimclick', 'smshinhanansimclick',
+          'hdcardappcardansimclick', 'smhyundaiansimclick',
+          'lotteappcard', 'lottesmartpay',
+          'nhappcardansimclick', 'nhallonepayansimclick',
+          'citispay', 'citicardappkr', 'citimobileapp',
+          'wooripay', 'com.wooricard.wcard',
+          'shinsegaeeasypayment', 'hanawalletmembers',
+          // 통신사 본인인증(PASS)
+          'tauthlink', 'ktauthexternalcall', 'upluscorporation',
+        ],
       },
     },
     android: {
@@ -79,6 +122,20 @@ module.exports = {
     },
     plugins: [
       'expo-router',
+      // iOS FCM — 서버(/api/push/fcm/register)가 raw FCM 토큰만 받으므로 iOS도
+      // Firebase Messaging으로 FCM 등록 토큰을 발급한다(expo-notifications의
+      // getDevicePushTokenAsync는 iOS에서 APNs 토큰이라 서버가 못 쓴다).
+      // 설정 파일이 없으면 플러그인이 prebuild에서 throw 하므로 조건부로 켠다.
+      ...(FIREBASE_CONFIGURED ? ['@react-native-firebase/app'] : []),
+      // iOS ATT(앱 추적 투명성) 문구 — AdMob·애드팝콘 둘 다 IDFA를 쓰므로 필수.
+      // 권한 요청 시점은 첫 광고/오퍼월 진입 직전(src/lib/tracking.ts).
+      [
+        'expo-tracking-transparency',
+        {
+          userTrackingPermission:
+            '맞춤 광고를 제공하고 리워드 적립을 정확히 확인하기 위해 사용됩니다.',
+        },
+      ],
       // Pretendard(웹과 동일 브랜드 서체)를 네이티브에 임베드해 로딩 화면
       // 태그라인 등 네이티브 Text에서 fontFamily:'Pretendard-Black'로 사용.
       // config plugin 방식이라 빌드 시 포함돼 첫 화면부터 지연 없이 적용된다.
@@ -119,6 +176,12 @@ module.exports = {
       [
         'expo-build-properties',
         {
+          ios: {
+            // Firebase iOS SDK(@react-native-firebase)는 정적 프레임워크 링크가
+            // 필수다. pod은 조건부 플러그인과 무관하게 autolinking으로 항상
+            // 설치되므로 이 설정도 항상 켜 둔다.
+            useFrameworks: 'static',
+          },
           android: {
             extraMavenRepos: ['https://devrepo.kakao.com/nexus/content/groups/public/'],
             // R8 최적화(코드/리소스 축소) — 플레이 콘솔 "앱이 최적화되지 않음" 경고 해소.
@@ -143,7 +206,33 @@ module.exports = {
       ],
       [
         'react-native-google-mobile-ads',
-        { androidAppId: ADMOB_ANDROID_APP_ID, iosAppId: ADMOB_IOS_APP_ID },
+        {
+          androidAppId: ADMOB_ANDROID_APP_ID,
+          iosAppId: ADMOB_IOS_APP_ID,
+          // iOS 광고 어트리뷰션(SKAdNetwork). 플러그인이 자동 주입하지 않으므로
+          // 직접 나열해야 한다 — 빠지면 iOS 광고 성과 측정·수익이 크게 깎인다.
+          // 목록 출처: react-native-google-mobile-ads 공식 문서(= Google 권장 목록,
+          // https://developers.google.com/admob/ios/quick-start#update_your_infoplist)
+          skAdNetworkItems: [
+            'cstr6suwn9.skadnetwork', '4fzdc2evr5.skadnetwork', '2fnua5tdw4.skadnetwork',
+            'ydx93a7ass.skadnetwork', 'p78axxw29g.skadnetwork', 'v72qych5uu.skadnetwork',
+            'ludvb6z3bs.skadnetwork', 'cp8zw746q7.skadnetwork', '3sh42y64q3.skadnetwork',
+            'c6k4g5qg8m.skadnetwork', 's39g8k73mm.skadnetwork', 'wg4vff78zm.skadnetwork',
+            '3qy4746246.skadnetwork', 'f38h382jlk.skadnetwork', 'hs6bdukanm.skadnetwork',
+            'mlmmfzh3r3.skadnetwork', 'v4nxqhlyqp.skadnetwork', 'wzmmz9fp6w.skadnetwork',
+            'su67r6k2v3.skadnetwork', 'yclnxrl5pm.skadnetwork', 't38b2kh725.skadnetwork',
+            '7ug5zh24hu.skadnetwork', 'gta9lk7p23.skadnetwork', 'vutu7akeur.skadnetwork',
+            'y5ghdn5j9k.skadnetwork', 'v9wttpbfk9.skadnetwork', 'n38lu8286q.skadnetwork',
+            '47vhws6wlr.skadnetwork', 'kbd757ywx3.skadnetwork', '9t245vhmpl.skadnetwork',
+            'a2p9lx4jpn.skadnetwork', '22mmun2rn5.skadnetwork', '44jx6755aq.skadnetwork',
+            'k674qkevps.skadnetwork', '4468km3ulz.skadnetwork', '2u9pt9hc89.skadnetwork',
+            '8s468mfl3y.skadnetwork', 'klf5c3l5u5.skadnetwork', 'ppxm28t8ap.skadnetwork',
+            'kbmxgpxpgc.skadnetwork', 'uw77j35x4d.skadnetwork', '578prtvx9j.skadnetwork',
+            '4dzt52r2t5.skadnetwork', 'tl55sbb4fm.skadnetwork', 'c3frkrj4fj.skadnetwork',
+            'e5fvkxwrpn.skadnetwork', '8c4e2ghe7u.skadnetwork', '3rd42ekr43.skadnetwork',
+            '97r2b46745.skadnetwork', '3qcr597p9d.skadnetwork',
+          ],
+        },
       ],
       [
         './plugins/withAdpopcorn',

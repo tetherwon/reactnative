@@ -117,8 +117,11 @@ export async function openExternalUrl(url: string): Promise<void> {
       return;
     }
 
-    const canOpen = await Linking.canOpenURL(url);
-    if (canOpen) await Linking.openURL(url);
+    // 앱 스킴(kakaotalk://, ispmobile:// 등)은 게이트 없이 바로 연다 —
+    // canOpenURL은 iOS(LSApplicationQueriesSchemes 미선언), Android 11+
+    // (<queries> 미선언) 모두에서 false를 돌려줘 '눌러도 무반응'이 된다.
+    // openURL 자체는 선언 없이도 동작하고, 실패(앱 미설치)는 아래 catch가 삼킨다.
+    await Linking.openURL(url);
   } catch {
     // 설치되지 않은 앱 등 — 무시 (앱이 죽지 않도록)
   }

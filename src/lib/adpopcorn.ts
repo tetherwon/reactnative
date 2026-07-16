@@ -17,6 +17,8 @@
  */
 import { Platform } from 'react-native';
 
+import { ensureTrackingPermissionAsync } from './tracking';
+
 type AdPopcornRewardModule = typeof import('react-native-adpopcorn-reward');
 
 let mod: AdPopcornRewardModule | null | undefined;
@@ -71,6 +73,10 @@ export function openOfferwall(userId: string) {
   const m = getModule();
   if (!m || !userId) return;
   ensureAppKey();
-  m.default.setUserId(userId);
-  m.default.openOfferwall();
+  // 오퍼월 참여 추적(IDFA)을 위해 ATT 권한을 먼저 요청한다(iOS, 최초 1회).
+  // 거부해도 오퍼월은 열린다 — 매체사 추적 정확도만 떨어진다.
+  ensureTrackingPermissionAsync().finally(() => {
+    m.default.setUserId(userId);
+    m.default.openOfferwall();
+  });
 }
