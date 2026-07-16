@@ -108,6 +108,15 @@ export async function openExternalUrl(url: string): Promise<void> {
       }
     }
 
+    // http(s)는 canOpenURL 게이트 없이 바로 연다 — Android 11+ 패키지 가시성
+    // 제한(<queries> 미선언)으로 canOpenURL이 false를 반환해 '눌러도 무반응'이
+    // 될 수 있다. 기본 브라우저로 열리며, 쿠팡(link.coupang.com)처럼 앱링크가
+    // 검증된 도메인은 OS가 해당 몰 앱을 바로 띄운다.
+    if (/^https?:/i.test(url)) {
+      await Linking.openURL(url);
+      return;
+    }
+
     const canOpen = await Linking.canOpenURL(url);
     if (canOpen) await Linking.openURL(url);
   } catch {

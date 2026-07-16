@@ -220,8 +220,8 @@ export default function HomeScreen() {
     [goTo, openGoogleOAuth],
   );
 
-  // 웹 URL(http·https·javascript: 등)은 전부 웹뷰가 그대로 처리하고,
-  // 앱 스킴(intent://, tel:, kakaotalk:// 등)만 외부 앱으로 넘긴다.
+  // 신뢰 도메인(자사·결제·로그인)의 웹 URL만 웹뷰가 처리하고, 그 외 http(s) 최상위
+  // 이동(외부 쇼핑몰 등)과 앱 스킴(intent://, tel:, kakaotalk:// 등)은 외부로 넘긴다.
   // (웹뷰가 앱 스킴을 직접 열면 ERR_UNKNOWN_URL_SCHEME 에러 화면이 뜬다.)
   const onShouldStartLoadWithRequest = useCallback(
     (request: ShouldStartLoadRequest) => {
@@ -232,9 +232,21 @@ export default function HomeScreen() {
       // 웹뷰 안에서 진행되는 소셜 로그인(애플 등)도 마지막에 딥링크로 끝나므로
       // 표식을 남겨야 라우터 경로가 토큰을 수용한다.
       if (isOAuthWebStartUrl(request.url)) markOAuthPending();
-      if (isWebViewNavigable(request.url)) return true;
-      openExternalUrl(request.url);
-      return false;
+      if (!isWebViewNavigable(request.url)) {
+        openExternalUrl(request.url);
+        return false;
+      }
+      // 신뢰 도메인(자사·결제·로그인)이 아닌 http(s) "최상위" 이동 — 외부 쇼핑몰 등 —
+      // 은 시스템 브라우저로 내보낸다. 쿠팡(link.coupang.com) 같은 앱링크 도메인은
+      // 거기서 해당 몰 앱이 바로 뜬다. 웹(shared-utils.js openOutbound)이 제휴 클릭을
+      // location.href 최상위 이동으로 넘기는 계약의 수신부가 바로 이 분기다.
+      // iframe(isTopFrame === false, iOS 전용 필드)은 페이지 구성요소라 웹뷰가 그대로 처리.
+      const isMainFrame = request.isTopFrame !== false;
+      if (isMainFrame && /^https?:/i.test(request.url) && !isTrustedHost(request.url)) {
+        openExternalUrl(request.url);
+        return false;
+      }
+      return true;
     },
     [openGoogleOAuth],
   );
