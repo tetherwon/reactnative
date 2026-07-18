@@ -52,10 +52,11 @@ module.exports = {
     name: '쇼핑로그',
     slug: 'webview',
     owner: 'shoppinglog',
-    // 1.2.0: 애드팝콘 오퍼월 네이티브 모듈 추가. runtimeVersion(appVersion 정책)이
-    // 갈리므로 이 버전의 JS(OTA)는 1.2.0 바이너리에만 배포된다 — 네이티브
-    // 모듈이 없는 구버전 앱이 이 코드를 받아 죽는 일을 막는다.
-    version: '1.2.0',
+    // 1.3.0: 하이브리드 네이티브 화면 15종 + react-native-svg·expo-clipboard
+    // 네이티브 모듈 추가. runtimeVersion(appVersion 정책)이 갈리므로 이 버전의
+    // JS(OTA)는 1.3.0 바이너리에만 배포된다 — 모듈이 없는 구버전 앱이
+    // 이 코드를 받아 죽는 일을 막는다. (1.2.0: 애드팝콘 오퍼월 추가)
+    version: '1.3.0',
     runtimeVersion: {
       policy: 'appVersion',
     },
