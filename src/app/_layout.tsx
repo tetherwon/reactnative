@@ -9,7 +9,8 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar style="auto" />
       <AppLockGate>
-        <Stack screenOptions={{ headerShown: false }} />
+        {/* animation: 'none' — 탭 전환 시 우→좌 슬라이드 제거(하단 탭 앱은 즉시 전환이 기본) */}
+        <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
       </AppLockGate>
     </SafeAreaProvider>
   );
