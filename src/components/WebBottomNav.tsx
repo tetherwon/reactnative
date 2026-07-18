@@ -22,9 +22,9 @@ function openWeb(path: string) {
 
 type TabKey = 'home' | 'point-draw' | 'discount-log' | 'benefit' | 'profile';
 
-// 각 탭의 네이티브 라우트(있으면) — native_screens 스위치가 켜져 있을 때만 사용
+// 각 탭의 네이티브 라우트(있으면) — native_screens 스위치가 켜져 있을 때만 사용.
+// 홈은 웹뷰(리치한 웹 홈)를 유지한다 — 네이티브 홈은 웹과 화면차가 커서 롤백.
 const NATIVE_ROUTES: Partial<Record<TabKey, { screen: string; route: string; needsAuth: boolean }>> = {
-  home: { screen: 'home', route: '/home', needsAuth: true },
   benefit: { screen: 'benefit', route: '/benefit', needsAuth: true },
   'discount-log': { screen: 'discount-log', route: '/discount-log', needsAuth: false },
   'point-draw': { screen: 'point-draw', route: '/point-draw', needsAuth: true },

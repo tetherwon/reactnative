@@ -187,10 +187,8 @@ export default function TicketsScreen() {
             '제휴몰에서 쇼핑하면 지급',
             '+1장',
             () => {
-              if (isNativeScreenEnabled('home')) {
-                haptics.tap();
-                router.push('/home');
-              } else openWeb('/');
+              // 홈은 웹뷰 유지 — 네이티브 홈 롤백
+              openWeb('/');
             },
           )}
           {missionCard(
