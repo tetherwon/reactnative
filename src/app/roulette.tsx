@@ -51,6 +51,12 @@ type SpinResult = {
   ticket_count: number;
 };
 type Winner = { prize_label: string; name?: string; masked?: string; email?: string };
+type Spin = { id: number; prize_key: string; prize_label: string; points_awarded: number; created_at: number };
+
+function fmtDate(ts: number): string {
+  const d = new Date(ts * 1000);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+}
 
 function normalizeDeg(v: number): number {
   return ((v % 360) + 360) % 360;
@@ -65,11 +71,11 @@ function openWeb(path: string) {
 
 export default function RouletteScreen() {
   const [status, setStatus] = useState<Status | null>(null);
-  const [prizes, setPrizes] = useState<Prize[]>([]);
   const [orderMismatch, setOrderMismatch] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<SpinResult | null>(null);
   const [winners, setWinners] = useState<Winner[]>([]);
+  const [history, setHistory] = useState<Spin[] | null>(null);
   const [checkinMsg, setCheckinMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -96,13 +102,14 @@ export default function RouletteScreen() {
       if (e instanceof ApiError && e.status === 401) router.back();
     });
     apiFetchSWR<{ prizes: Prize[] }>('/api/roulette/prizes', (d) => {
-      const list = d.prizes || [];
-      setPrizes(list);
-      const keys = list.map((p) => p.key);
+      const keys = (d.prizes || []).map((p) => p.key);
       setOrderMismatch(keys.join(',') !== WHEEL_ORDER.join(','));
     }).catch(() => {});
     apiFetchSWR<{ winners: Winner[] }>('/api/roulette/recent', (d) =>
       setWinners((d.winners || []).slice(0, 5)),
+    ).catch(() => {});
+    apiFetchSWR<{ spins: Spin[] }>('/api/roulette/history?limit=5', (d) =>
+      setHistory(d.spins || []),
     ).catch(() => {});
   }, []);
 
@@ -184,7 +191,6 @@ export default function RouletteScreen() {
   }, [loadAll]);
 
   const tickets = status?.ticket_count ?? 0;
-  const totalWeight = prizes.reduce((s, p) => s + (p.weight || 0), 0);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -282,18 +288,35 @@ export default function RouletteScreen() {
           </View>
         )}
 
-        {/* 확률 안내 */}
-        {prizes.length > 0 && totalWeight > 0 && (
+        {/* 내 기록 (웹 rou-history-section 과 동일) */}
+        {history !== null && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>당첨 확률</Text>
-            {prizes.map((p) => (
-              <View key={p.key} style={styles.oddsRow}>
-                <Text style={styles.oddsLabel}>{p.label}</Text>
-                <Text style={styles.oddsPct}>
-                  {((p.weight / totalWeight) * 100).toFixed(p.weight < 50 ? 2 : 1)}%
-                </Text>
-              </View>
-            ))}
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>내 기록</Text>
+              <Pressable onPress={() => openWeb('/roulette-history')} hitSlop={8}>
+                <Text style={styles.historyMore}>전체 기록 보기 →</Text>
+              </Pressable>
+            </View>
+            {history.length === 0 ? (
+              <Text style={styles.historyEmpty}>아직 참여 내역이 없어요. 룰렛을 돌려보세요.</Text>
+            ) : (
+              history.map((s, i) => {
+                const isWin = s.points_awarded > 0;
+                return (
+                  <View key={s.id} style={[styles.historyRow, i > 0 && styles.historyRowBorder]}>
+                    <Image
+                      source={{ uri: 'https://shoppinglog.store/static/icons/cash.webp' }}
+                      style={styles.historyCoin}
+                      contentFit="contain"
+                    />
+                    <Text style={[styles.historyLabel, isWin ? styles.historyWin : styles.historyMiss]}>
+                      {isWin ? `+${s.points_awarded.toLocaleString('ko-KR')}캐시` : s.prize_label}
+                    </Text>
+                    <Text style={styles.historyDate}>{fmtDate(s.created_at)}</Text>
+                  </View>
+                );
+              })
+            )}
           </View>
         )}
       </ScrollView>
@@ -443,13 +466,15 @@ const styles = StyleSheet.create({
   winnerText: { flex: 1, fontSize: 13, color: '#475569' },
   winnerName: { fontWeight: '800', color: '#1e293b' },
   winnerPrize: { fontWeight: '800', color: '#2563eb' },
-  oddsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  oddsLabel: { fontSize: 13, color: '#475569' },
-  oddsPct: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
+  historyMore: { fontSize: 13, fontWeight: '700', color: '#3182f6' },
+  historyEmpty: { textAlign: 'center', color: '#64748b', paddingVertical: 24, fontSize: 14 },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
+  historyRowBorder: { borderTopWidth: 1, borderTopColor: '#eef1f4' },
+  historyCoin: { width: 30, height: 30 },
+  historyLabel: { flex: 1, fontSize: 16, fontWeight: '800' },
+  historyWin: { color: '#3182f6' },
+  historyMiss: { color: '#8b95a1' },
+  historyDate: { fontSize: 14, color: '#8b95a1' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',
