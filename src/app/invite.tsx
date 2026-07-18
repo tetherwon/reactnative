@@ -1,4 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
+import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
@@ -212,18 +213,46 @@ export default function InviteScreen() {
           </View>
         )}
 
-        {/* 혜택 안내 (웹 문구 그대로) */}
+        {/* 혜택 안내 (웹 invite.html 구조 그대로 — 아이콘 이미지 + 배지, 이모지 X) */}
         <Text style={styles.sectionTitle}>혜택 안내</Text>
         <View style={styles.benefitList}>
-          <Text style={styles.benefitItem}>
-            🎁 친구가 첫 구매 시 <Text style={styles.bold}>300캐시</Text> 즉시 적립
-          </Text>
-          <Text style={styles.benefitItem}>
-            🛍️ 친구 쇼핑의 <Text style={styles.bold}>10%</Text> 자동 적립 (1년간 유지)
-          </Text>
-          <Text style={styles.benefitItem}>
-            🏆 5명 초대마다 <Text style={styles.bold}>500캐시</Text> 보너스
-          </Text>
+          <View style={[styles.benefitRow, styles.benefitRowBorder]}>
+            <View style={styles.benefitIcon}>
+              <Image
+                source={{ uri: encodeURI(BASE_URL + '/static/logos/flow/reward.webp') }}
+                style={styles.benefitIconImg}
+                contentFit="contain"
+              />
+            </View>
+            <Text style={styles.benefitText}>
+              친구가 첫 구매 시 <Text style={styles.benefitStrong}>300캐시</Text> 즉시 적립
+            </Text>
+          </View>
+          <View style={[styles.benefitRow, styles.benefitRowBorder]}>
+            <View style={styles.benefitIcon}>
+              <Image
+                source={{ uri: encodeURI(BASE_URL + '/static/shopping.webp') }}
+                style={styles.benefitIconImg}
+                contentFit="contain"
+              />
+            </View>
+            <Text style={styles.benefitText}>
+              친구 쇼핑의 <Text style={styles.benefitStrong}>10%</Text> 자동 적립
+            </Text>
+            <Text style={styles.benefitBadge}>1년간 유지</Text>
+          </View>
+          <View style={styles.benefitRow}>
+            <View style={styles.benefitIcon}>
+              <Image
+                source={{ uri: encodeURI(BASE_URL + '/static/logos/트로피.webp') }}
+                style={styles.benefitIconImg}
+                contentFit="contain"
+              />
+            </View>
+            <Text style={styles.benefitText}>
+              5명 초대마다 <Text style={styles.benefitStrong}>500캐시</Text> 보너스
+            </Text>
+          </View>
         </View>
 
         {/* 적립·환불 규정 (웹 문구 그대로) */}
@@ -379,9 +408,36 @@ const styles = StyleSheet.create({
   refMsg: { fontSize: 12.5, fontWeight: '700', color: '#059669', marginTop: 8 },
   refMsgError: { color: '#dc2626' },
   sectionTitle: { fontSize: 15, fontWeight: '800', color: '#191f28', marginTop: 14, marginBottom: 8 },
-  benefitList: { gap: 7 },
-  benefitItem: { fontSize: 13.5, color: '#334155', lineHeight: 20 },
-  bold: { fontWeight: '900', color: '#2272eb' },
+  benefitList: { marginBottom: 4 },
+  benefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+  },
+  benefitRowBorder: { borderBottomWidth: 1, borderBottomColor: '#f2f4f6' },
+  benefitIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  benefitIconImg: { width: 28, height: 28 },
+  benefitText: { flex: 1, fontSize: 15, color: '#4e5968', lineHeight: 21 },
+  benefitStrong: { color: '#191f28', fontWeight: '700' },
+  benefitBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
+    backgroundColor: '#8b95a1',
+    borderRadius: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    overflow: 'hidden',
+  },
   policyList: { gap: 6 },
   policyItem: { fontSize: 12, color: '#8b95a1', lineHeight: 18 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
