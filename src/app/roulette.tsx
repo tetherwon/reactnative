@@ -21,7 +21,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import WebBottomNav from '@/components/WebBottomNav';
-import { apiFetch, ApiError, apiFetchSWR } from '@/lib/api';
+import { apiFetch, ApiError, apiFetchSWR, isNativeScreenEnabled } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 import { markWebStateDirty, requestWebNav } from '@/lib/webNav';
 
@@ -293,7 +293,15 @@ export default function RouletteScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>내 기록</Text>
-              <Pressable onPress={() => openWeb('/roulette-history')} hitSlop={8}>
+              <Pressable
+                onPress={() => {
+                  if (isNativeScreenEnabled('roulette-history')) {
+                    haptics.tap();
+                    router.push('/roulette-history');
+                  } else openWeb('/roulette-history');
+                }}
+                hitSlop={8}
+              >
                 <Text style={styles.historyMore}>전체 기록 보기 →</Text>
               </Pressable>
             </View>
