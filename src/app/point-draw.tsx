@@ -425,9 +425,11 @@ const styles = StyleSheet.create({
   balanceIllust: { width: 104, height: 104 },
   listTitle: { fontSize: 19, fontWeight: '900', color: '#0f172a', letterSpacing: -0.5, marginBottom: 12, marginHorizontal: 2 },
   emptyText: { textAlign: 'center', color: '#94a3b8', fontSize: 14, paddingVertical: 40 },
-  bandGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  // 3열: gap 대신 space-between 사용 — width%+gap 합이 폭을 넘어 2열로 줄바꿈되던 버그 수정
+  bandGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   bandCard: {
     width: '31.5%',
+    marginBottom: 10,
     alignItems: 'center',
     gap: 7,
     backgroundColor: '#ffffff',
