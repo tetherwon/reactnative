@@ -176,7 +176,15 @@ export default function HomeScreen() {
         } else openWeb('/roulette');
       },
     },
-    { label: '충전소', onPress: () => openWeb('/charge') },
+    {
+      label: '충전소',
+      onPress: () => {
+        if (isNativeScreenEnabled('charge')) {
+          haptics.tap();
+          router.push('/charge');
+        } else openWeb('/charge');
+      },
+    },
     { label: '캐시상점', onPress: () => openWeb('/store') },
     {
       label: '고객센터',

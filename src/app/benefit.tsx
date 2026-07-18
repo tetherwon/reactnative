@@ -61,10 +61,13 @@ export default function BenefitScreen() {
     }, []),
   );
 
+  // 네이티브 전환된 행이면 스위치가 켜져 있을 때 네이티브로 직행
+  const NATIVE_ROW_SCREENS: Record<string, string> = { roulette: 'roulette', charge: 'charge' };
   const onRowPress = (row: (typeof ROWS)[number]) => {
-    if (row.key === 'roulette' && isNativeScreenEnabled('roulette')) {
+    const screen = NATIVE_ROW_SCREENS[row.key];
+    if (screen && isNativeScreenEnabled(screen)) {
       haptics.tap();
-      router.push('/roulette');
+      router.push(row.path);
       return;
     }
     openWeb(row.path);
