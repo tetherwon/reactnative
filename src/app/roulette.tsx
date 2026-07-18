@@ -23,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import WebBottomNav from '@/components/WebBottomNav';
 import { apiFetch, ApiError } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
+import { requestWebNav } from '@/lib/webNav';
 
 // 웹 /roulette 의 네이티브 구현. 휠은 웹 SVG를 그대로 구운 이미지
 // (assets/images/roulette-wheel.png)를 reanimated 로 회전시킨다.
@@ -57,7 +58,9 @@ function normalizeDeg(v: number): number {
 
 function openWeb(path: string) {
   haptics.tap();
-  router.navigate({ pathname: '/', params: { navUrl: path, navTs: String(Date.now()) } });
+  // 웹뷰 화면을 리마운트하지 않고(웹뷰 리로드 방지) 목적지만 넘긴 뒤 네이티브 스택을 걷는다
+  requestWebNav(path);
+  router.dismissTo('/');
 }
 
 export default function RouletteScreen() {

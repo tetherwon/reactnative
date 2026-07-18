@@ -5,6 +5,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { isNativeScreenEnabled } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
+import { requestWebNav } from '@/lib/webNav';
 
 // 웹 partials/_bottom_nav.html 을 그대로 옮긴 네이티브 하단 네비.
 // 아이콘 SVG 패스·색·크기 모두 웹과 동일 (styles.css .bottom-nav 값 기준).
@@ -14,7 +15,9 @@ const MUTED = '#8b95a1';
 const ACTIVE = '#191f28';
 
 function openWeb(path: string) {
-  router.navigate({ pathname: '/', params: { navUrl: path, navTs: String(Date.now()) } });
+  // 웹뷰 화면을 리마운트하지 않고(웹뷰 리로드 방지) 목적지만 넘긴 뒤 네이티브 스택을 걷는다
+  requestWebNav(path);
+  router.dismissTo('/');
 }
 
 type TabKey = 'home' | 'point-draw' | 'discount-log' | 'benefit' | 'profile';

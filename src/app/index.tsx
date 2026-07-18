@@ -42,6 +42,7 @@ import {
   setToken,
 } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
+import { setWebNavListener } from '@/lib/webNav';
 import {
   KAKAO_BRIDGE_INJECTED_JS,
   KAKAO_BRIDGE_MESSAGE_TYPE,
@@ -136,16 +137,19 @@ export default function HomeScreen() {
     loadAppConfig();
   }, []);
 
-  // 네이티브 화면 → 웹뷰 페이지 복귀 (예: 혜택 화면의 '티켓 충전소' → /tickets)
-  const { navUrl, navTs } = useLocalSearchParams<{ navUrl?: string; navTs?: string }>();
-  const handledNavKey = useRef<string | null>(null);
+  // 네이티브 화면 → 웹뷰 페이지 복귀 (예: 혜택 화면의 '티켓 충전소' → /tickets).
+  // router 파라미터를 쓰면 이 화면이 리마운트되어 웹뷰가 처음부터 다시 로드되므로
+  // (앱 재시작처럼 보임) 이벤트 버스(webNav)로 목적지만 받는다.
+  const lastWebUrl = useRef<string>(HOME_URL);
   useEffect(() => {
-    if (typeof navUrl !== 'string' || !navUrl.startsWith('/')) return;
-    const key = `${navTs ?? ''}:${navUrl}`;
-    if (handledNavKey.current === key) return;
-    handledNavKey.current = key;
-    goTo(BASE_URL + navUrl);
-  }, [navUrl, navTs, goTo]);
+    return setWebNavListener((path) => {
+      const target = BASE_URL + path;
+      // 이미 그 페이지면 불필요한 리로드 생략 (하단 네비 '홈' 연타 등)
+      const cur = lastWebUrl.current.replace(/[?#].*$/, '').replace(/\/$/, '');
+      if (cur === target.replace(/\/$/, '')) return;
+      goTo(target);
+    });
+  }, [goTo]);
 
   // 토큰 핸드오프: 웹뷰 쿠키 세션을 Bearer 토큰으로 교환해 네이티브 화면이 쓰게 한다.
   // 로그아웃(401)만 토큰 삭제로 취급하고, 그 외 실패(레이트리밋 등)는 무시한다.
@@ -206,6 +210,7 @@ export default function HomeScreen() {
 
   const onNavigationStateChange = (navState: WebViewNavigation) => {
     canGoBack.current = navState.canGoBack;
+    if (navState.url) lastWebUrl.current = navState.url;
   };
 
   // 로그인 토큰을 웹뷰의 localStorage에 심고 홈으로 보낸다.

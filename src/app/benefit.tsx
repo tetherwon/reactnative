@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import WebBottomNav from '@/components/WebBottomNav';
 import { apiFetch, BASE_URL, isNativeScreenEnabled } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
+import { requestWebNav } from '@/lib/webNav';
 
 // 웹 /benefit(templates/benefit.html)의 네이티브 구현.
 // 색·크기·간격은 static/styles.css 의 benefit-* 값을 그대로 옮겼다 (픽셀 패리티).
@@ -15,7 +16,9 @@ type Overview = { user?: { points?: number } };
 
 function openWeb(path: string) {
   haptics.tap();
-  router.navigate({ pathname: '/', params: { navUrl: path, navTs: String(Date.now()) } });
+  // 웹뷰 화면을 리마운트하지 않고(웹뷰 리로드 방지) 목적지만 넘긴 뒤 네이티브 스택을 걷는다
+  requestWebNav(path);
+  router.dismissTo('/');
 }
 
 const img = (path: string) => ({ uri: encodeURI(BASE_URL + path) });
