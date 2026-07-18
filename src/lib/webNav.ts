@@ -13,6 +13,20 @@ export function requestWebNav(path: string): void {
   else pending = path;
 }
 
+// 네이티브 화면에서 잔액이 바뀌는 행동(룰렛 스핀·출석 등)을 하면 표시해두고,
+// 웹뷰로 돌아갈 때 웹 캐시(sl_me_cache 등)를 무효화해 상단 캐시·티켓 표시를 맞춘다.
+let webStateDirty = false;
+
+export function markWebStateDirty(): void {
+  webStateDirty = true;
+}
+
+export function consumeWebStateDirty(): boolean {
+  const dirty = webStateDirty;
+  webStateDirty = false;
+  return dirty;
+}
+
 export function setWebNavListener(fn: (path: string) => void): () => void {
   listener = fn;
   if (pending) {

@@ -23,7 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import WebBottomNav from '@/components/WebBottomNav';
 import { apiFetch, ApiError } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
-import { requestWebNav } from '@/lib/webNav';
+import { markWebStateDirty, requestWebNav } from '@/lib/webNav';
 
 // 웹 /roulette 의 네이티브 구현. 휠은 웹 SVG를 그대로 구운 이미지
 // (assets/images/roulette-wheel.png)를 reanimated 로 회전시킨다.
@@ -135,6 +135,7 @@ export default function RouletteScreen() {
     startIdleSpin();
     apiFetch<SpinResult>('/api/roulette/spin', { method: 'POST' })
       .then((res) => {
+        markWebStateDirty(); // 티켓·캐시 변동 — 웹뷰 복귀 시 웹 캐시 갱신
         setStatus((s) => (s ? { ...s, ticket_count: res.ticket_count } : s));
         const idx = WHEEL_ORDER.indexOf(res.prize_key);
         const safeIdx = idx >= 0 ? idx : 0;
@@ -173,6 +174,7 @@ export default function RouletteScreen() {
       { method: 'POST' },
     )
       .then((d) => {
+        markWebStateDirty();
         setStatus((s) =>
           s ? { ...s, streak_days: d.streak_days, checked_today: true } : s,
         );

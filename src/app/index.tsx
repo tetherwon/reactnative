@@ -42,7 +42,7 @@ import {
   setToken,
 } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
-import { setWebNavListener } from '@/lib/webNav';
+import { consumeWebStateDirty, setWebNavListener } from '@/lib/webNav';
 import {
   KAKAO_BRIDGE_INJECTED_JS,
   KAKAO_BRIDGE_MESSAGE_TYPE,
@@ -129,6 +129,14 @@ export default function HomeScreen() {
   const isWebViewFocused = useRef(true);
   useEffect(() => {
     isWebViewFocused.current = pathname === '/';
+    // 네이티브 화면에서 잔액 변동(룰렛 스핀·출석) 후 복귀: 웹 캐시를 지우고
+    // 새로고침해 상단 캐시·티켓 표시를 서버 값과 맞춘다 (SW 캐시라 리로드는 즉시).
+    if (pathname === '/' && isLoaded.current && consumeWebStateDirty()) {
+      webViewRef.current?.injectJavaScript(
+        'try{window.SLUtils&&window.SLUtils.clearMeCache&&window.SLUtils.clearMeCache();}catch(e){}' +
+          'location.reload();true;',
+      );
+    }
   }, [pathname]);
 
   // 하이브리드 부팅: 토큰 동기 캐시 예열 + 원격 native_screens 로드(캐시 즉시, 네트워크 갱신)
