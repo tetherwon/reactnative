@@ -20,6 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import WebBottomNav from '@/components/WebBottomNav';
 import { apiFetch, ApiError } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 
@@ -294,6 +295,7 @@ export default function RouletteScreen() {
           </View>
         )}
       </ScrollView>
+      <WebBottomNav />
 
       {/* 결과 모달 */}
       <Modal visible={result !== null} transparent animationType="fade">

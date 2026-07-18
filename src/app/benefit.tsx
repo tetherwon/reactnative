@@ -1,24 +1,18 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import WebBottomNav from '@/components/WebBottomNav';
 import { apiFetch, BASE_URL, isNativeScreenEnabled } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 
 // 웹 /benefit(templates/benefit.html)의 네이티브 구현.
-// 데이터는 서버 API를 그대로 쓰고, 이미지도 서버 정적 자산을 캐시해 쓴다.
+// 색·크기·간격은 static/styles.css 의 benefit-* 값을 그대로 옮겼다 (픽셀 패리티).
 
 type Overview = { user?: { points?: number } };
 
-// 네이티브 화면 → 웹뷰 페이지로 이동 (index.tsx 의 navUrl 파라미터 수신부와 계약)
 function openWeb(path: string) {
   haptics.tap();
   router.navigate({ pathname: '/', params: { navUrl: path, navTs: String(Date.now()) } });
@@ -26,6 +20,7 @@ function openWeb(path: string) {
 
 const img = (path: string) => ({ uri: encodeURI(BASE_URL + path) });
 
+// styles.css .benefit-row-pill--* 값 그대로
 const ROWS: {
   key: string;
   name: string;
@@ -35,12 +30,12 @@ const ROWS: {
   pillBg: string;
   pillColor: string;
 }[] = [
-  { key: 'tickets', name: '티켓 충전소', path: '/tickets', icon: '/static/ticket.webp', pill: '충전하기', pillBg: '#eff6ff', pillColor: '#2563eb' },
-  { key: 'charge', name: '캐시 충전소', path: '/charge', icon: '/static/icons/충전소.webp', pill: '충전하기', pillBg: '#ecfdf5', pillColor: '#059669' },
-  { key: 'kospi', name: '코스피 예측', path: '/kospi', icon: '/static/icons/코스피.png', pill: '최대 10캐시', pillBg: '#fef2f2', pillColor: '#dc2626' },
-  { key: 'roulette', name: '행운 룰렛', path: '/roulette', icon: '/static/rolutte.webp', pill: '최대 2000캐시', pillBg: '#f5f3ff', pillColor: '#7c3aed' },
-  { key: 'tournament', name: '가위바위보', path: '/tournament', icon: '/static/rocksessionpaper.webp', pill: '도전하기', pillBg: '#fff7ed', pillColor: '#ea580c' },
-  { key: 'invite', name: '친구 초대', path: '/invite', icon: '/static/icons/친구초대.webp', pill: '300캐시', pillBg: '#fdf2f8', pillColor: '#db2777' },
+  { key: 'tickets', name: '티켓 충전소', path: '/tickets', icon: '/static/ticket.webp', pill: '충전하기', pillBg: '#eff4ff', pillColor: '#3182f6' },
+  { key: 'charge', name: '캐시 충전소', path: '/charge', icon: '/static/icons/충전소.webp', pill: '충전하기', pillBg: '#e6f7ef', pillColor: '#03b26c' },
+  { key: 'kospi', name: '코스피 예측', path: '/kospi', icon: '/static/icons/코스피.png', pill: '최대 10캐시', pillBg: '#fdecee', pillColor: '#e42939' },
+  { key: 'roulette', name: '행운 룰렛', path: '/roulette', icon: '/static/rolutte.webp', pill: '최대 2000캐시', pillBg: '#f1ebfe', pillColor: '#7c3aed' },
+  { key: 'tournament', name: '가위바위보', path: '/tournament', icon: '/static/rocksessionpaper.webp', pill: '도전하기', pillBg: '#fff1e3', pillColor: '#e2620a' },
+  { key: 'invite', name: '친구 초대', path: '/invite', icon: '/static/icons/친구초대.webp', pill: '300캐시', pillBg: '#fdecf4', pillColor: '#db2777' },
 ];
 
 export default function BenefitScreen() {
@@ -75,18 +70,12 @@ export default function BenefitScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={10}>
-          <Text style={styles.backChevron}>‹</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>혜택</Text>
-        <View style={styles.backBtn} />
-      </View>
-
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.subTitle}>즐기고 모으는 적립 혜택</Text>
+        {/* benefit-head */}
+        <Text style={styles.headTitle}>혜택</Text>
+        <Text style={styles.headSub}>즐기고 모으는 적립 혜택</Text>
 
-        {/* 보유 캐시 히어로 → 캐시내역(웹뷰) */}
+        {/* benefit-hero: 파란 배경 + 보유 캐시 + 이글루 (탭 → 캐시내역) */}
         <Pressable style={styles.hero} onPress={() => openWeb('/my-purchases')}>
           <View style={styles.heroInfo}>
             <Text style={styles.heroLabel}>보유 캐시</Text>
@@ -94,9 +83,13 @@ export default function BenefitScreen() {
               <Text style={styles.heroValue}>
                 {points === null ? '—' : points.toLocaleString('ko-KR')}
               </Text>
-              <Text style={styles.heroCoin}>C</Text>
+              <View style={styles.heroCoin}>
+                <Text style={styles.heroCoinText}>C</Text>
+              </View>
             </View>
-            <Text style={styles.heroLink}>캐시내역 ›</Text>
+            <View style={styles.heroLink}>
+              <Text style={styles.heroLinkText}>캐시내역 ›</Text>
+            </View>
           </View>
           <Image source={img('/static/logos/이글루.webp')} style={styles.heroImg} contentFit="contain" />
         </Pressable>
@@ -132,71 +125,91 @@ export default function BenefitScreen() {
           <Text style={styles.rowArrow}>›</Text>
         </Pressable>
       </ScrollView>
+      <WebBottomNav active="benefit" />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#ffffff' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    height: 48,
-  },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  backChevron: { fontSize: 30, color: '#1e293b', marginTop: -4 },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#0f172a' },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 18, paddingBottom: 40 },
-  subTitle: { fontSize: 14, color: '#64748b', marginBottom: 14 },
+  scrollContent: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 32 },
+  headTitle: { fontSize: 22, fontWeight: '800', color: '#191f28', letterSpacing: -0.3, marginBottom: 4 },
+  headSub: { fontSize: 12, color: '#8b95a1', marginBottom: 16 },
   hero: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#eff6ff',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    marginBottom: 26,
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: '#3182f6',
+    borderRadius: 16,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 20,
+    marginBottom: 14,
+    shadowColor: '#3182f6',
+    shadowOpacity: 0.32,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
   },
   heroInfo: { flex: 1 },
-  heroLabel: { fontSize: 13, color: '#475569', fontWeight: '600' },
-  heroValueRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 4 },
-  heroValue: { fontSize: 32, fontWeight: '900', color: '#0f172a', letterSpacing: -0.5 },
-  heroCoin: { fontSize: 20, fontWeight: '800', color: '#f59e0b', marginLeft: 4 },
-  heroLink: { fontSize: 13, color: '#2563eb', fontWeight: '700', marginTop: 6 },
-  heroImg: { width: 104, height: 104 },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#0f172a', marginBottom: 10 },
-  list: { marginBottom: 22 },
+  heroLabel: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.85)', marginBottom: 6 },
+  heroValueRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroValue: { fontSize: 36, fontWeight: '800', color: '#ffffff', letterSpacing: -0.7, lineHeight: 40 },
+  heroCoin: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#fe9800',
+    borderWidth: 2,
+    borderColor: '#fde68a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroCoinText: { fontSize: 16, fontWeight: '800', color: '#92400e' },
+  heroLink: {
+    alignSelf: 'flex-start',
+    marginTop: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  heroLinkText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
+  heroImg: { width: 96, height: 96, transform: [{ translateX: 10 }] },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#191f28', marginTop: 12, marginBottom: 8 },
+  list: { marginBottom: 18 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 13,
-  },
-  rowPressed: { opacity: 0.6 },
-  rowIconWrap: {
-    width: 46,
-    height: 46,
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     borderRadius: 14,
+  },
+  rowPressed: { backgroundColor: '#f2f4f6' },
+  rowIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: '#f4f6fb',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
   },
-  rowIcon: { width: 34, height: 34 },
-  rowName: { flex: 1, fontSize: 15, fontWeight: '700', color: '#1e293b' },
-  pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, marginRight: 6 },
-  pillText: { fontSize: 12, fontWeight: '800' },
-  rowArrow: { fontSize: 20, color: '#cbd5e1', fontWeight: '600' },
+  rowIcon: { width: 30, height: 30 },
+  rowName: { flex: 1, fontSize: 15, fontWeight: '700', color: '#191f28' },
+  pill: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
+  pillText: { fontSize: 12, fontWeight: '700' },
+  rowArrow: { fontSize: 20, color: '#d1d6db', fontWeight: '600' },
   exchange: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
     backgroundColor: '#fffbeb',
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    gap: 10,
   },
   exchangeIcon: { width: 30, height: 30 },
   exchangeText: { flex: 1, fontSize: 13, color: '#475569', lineHeight: 19 },
