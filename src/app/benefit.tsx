@@ -124,7 +124,7 @@ export default function BenefitScreen() {
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               onPress={() => onRowPress(row)}
             >
-              <View style={styles.rowIconWrap}>
+              <View style={[styles.rowIconWrap, { backgroundColor: row.pillBg }]}>
                 <Image source={img(row.icon)} style={styles.rowIcon} contentFit="contain" />
               </View>
               <Text style={styles.rowName}>{row.name}</Text>
