@@ -244,15 +244,18 @@ export default function ProfileScreen() {
               router.push('/cs');
             } else openWeb('/cs');
           })}
-          {menuRow('문의하기 · 내 문의 내역', () => openWeb('/profile'))}
+          {menuRow('문의하기 · 내 문의 내역', () => openWeb('/profile?app=1'))}
         </View>
 
         {/* 계정 */}
         <Text style={styles.sectionLabel}>계정</Text>
         <View style={styles.menuSection}>
-          {user?.provider === 'email' && menuRow('계정 연동 · 비밀번호 변경', () => openWeb('/profile'))}
+          {user?.provider === 'email' && menuRow('계정 연동 · 비밀번호 변경', () => openWeb('/profile?app=1'))}
           {menuRow('로그아웃', logout)}
-          {menuRow('회원 탈퇴', () => openWeb('/profile'), true)}
+          {/* 전용 웹 탈퇴 페이지로 — /profile 로 보내면 profile 이 네이티브 화면이라
+              RN이 다시 가로채 네이티브 프로필로 돌아오는 루프에 빠져 탈퇴가 안 됐다.
+              /account-deletion 은 네이티브 화면이 아니라 웹뷰가 그대로 연다. */}
+          {menuRow('회원 탈퇴', () => openWeb('/account-deletion'), true)}
         </View>
 
         {/* 약관·정보 */}

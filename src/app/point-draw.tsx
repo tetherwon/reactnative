@@ -205,7 +205,9 @@ export default function PointDrawScreen() {
               <Text style={styles.balanceLabel}>보유 포인트</Text>
               <View style={styles.balanceRow}>
                 <Text style={styles.balanceAmount}>{fmt(balance)}</Text>
-                <Text style={styles.balanceUnit}>P</Text>
+                <View style={styles.balanceCoin}>
+                  <Text style={styles.balanceCoinText}>P</Text>
+                </View>
               </View>
               <Pressable style={styles.balanceLink} onPress={() => openWeb('/go/coupang')}>
                 <Text style={styles.balanceLinkText}>쿠팡에서 적립 ›</Text>
@@ -410,9 +412,20 @@ const styles = StyleSheet.create({
   },
   balanceInfo: { flex: 1 },
   balanceLabel: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
-  balanceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 4 },
+  balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   balanceAmount: { fontSize: 34, fontWeight: '800', color: '#ffffff', letterSpacing: -0.6 },
-  balanceUnit: { fontSize: 20, fontWeight: '800', color: 'rgba(255,255,255,0.9)' },
+  // 웹 .pd-balance-unit 과 동일 — 빨간 원형 P 코인 배지 (radial gradient는 solid+border로 근사)
+  balanceCoin: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#ef4444',
+    borderWidth: 1.5,
+    borderColor: '#fca5a5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  balanceCoinText: { fontSize: 15, fontWeight: '800', color: '#ffffff' },
   balanceLink: {
     alignSelf: 'flex-start',
     marginTop: 12,

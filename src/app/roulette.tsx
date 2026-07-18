@@ -237,7 +237,16 @@ export default function RouletteScreen() {
           </Pressable>
         )}
         {tickets <= 0 && !spinning && (
-          <Pressable style={styles.chargeCta} onPress={() => openWeb('/tickets')}>
+          <Pressable
+            style={styles.chargeCta}
+            onPress={() => {
+              // tickets 가 네이티브면 웹뷰로 보내면 RN이 다시 가로채 루프 → 네이티브로 직행
+              if (isNativeScreenEnabled('tickets')) {
+                haptics.tap();
+                router.push('/tickets');
+              } else openWeb('/tickets');
+            }}
+          >
             <Text style={styles.chargeCtaText}>🎟️ 티켓 충전하고 돌리기</Text>
           </Pressable>
         )}
