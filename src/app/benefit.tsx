@@ -78,7 +78,17 @@ export default function BenefitScreen() {
         <Text style={styles.headSub}>즐기고 모으는 적립 혜택</Text>
 
         {/* benefit-hero: 파란 배경 + 보유 캐시 + 이글루 (탭 → 캐시내역) */}
-        <Pressable style={styles.hero} onPress={() => openWeb('/my-purchases')}>
+        <Pressable
+          style={styles.hero}
+          onPress={() => {
+            if (isNativeScreenEnabled('my-purchases')) {
+              haptics.tap();
+              router.push('/my-purchases');
+            } else {
+              openWeb('/my-purchases');
+            }
+          }}
+        >
           <View style={styles.heroInfo}>
             <Text style={styles.heroLabel}>보유 캐시</Text>
             <View style={styles.heroValueRow}>
