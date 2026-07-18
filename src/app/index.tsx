@@ -3,8 +3,9 @@ import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import * as Notifications from 'expo-notifications';
 import { router, useLocalSearchParams, usePathname, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   BackHandler,
   Image,
   Platform,
@@ -112,6 +113,9 @@ export default function HomeScreen() {
   const lastBackPress = useRef(0);
   const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // native_screens 설정이 로드/갱신될 때마다 bump — injectedJavaScriptBeforeContentLoaded
+  // (콘텐츠 로드 전 __slNativePaths 주입)를 재계산해 다음 내비게이션에 반영한다.
+  const [configVersion, setConfigVersion] = useState(0);
 
   const { isConnected } = useNetInfo();
   const isOffline = isConnected === false;
@@ -167,8 +171,25 @@ export default function HomeScreen() {
   // 하이브리드 부팅: 토큰 동기 캐시 예열 + 원격 native_screens 로드(캐시 즉시, 네트워크 갱신)
   useEffect(() => {
     getToken();
-    loadAppConfig();
+    loadAppConfig().then(() => setConfigVersion((v) => v + 1));
+    // 앱이 포그라운드로 돌아올 때마다 native_screens 재로드 — 관리자가 킬스위치로
+    // 화면을 끄면, 앱을 껐다 켜지 않아도(백그라운드→복귀) 다음 진입부터 웹뷰로 롤백된다.
+    // (부팅 1회만 로드하면 이미 켜둔 유저에게 롤백이 재시작 전까지 도달 못 하는 문제)
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') loadAppConfig().then(() => setConfigVersion((v) => v + 1));
+    });
+    return () => sub.remove();
   }, []);
+
+  // __slNativePaths 를 콘텐츠 로드 '전'에 주입 — onLoadEnd(로드 완료 후)에만 주입하면
+  // 로드 완료 전 탭 클릭 시 spa-nav가 값을 못 보고 SPA 스왑으로 새어 웹 버전이 뜨는
+  // 레이스가 있다. 카카오 브릿지와 함께 beforeContentLoaded 로 올려 그 창을 없앤다.
+  // configVersion 이 바뀌면(설정 갱신) 재계산되어 다음 내비게이션부터 최신 경로 반영.
+  const beforeContentLoadedJS = useMemo(
+    () => `${KAKAO_BRIDGE_INJECTED_JS}\n${nativePathsScript()}`,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [configVersion],
+  );
 
   // 네이티브 화면 → 웹뷰 페이지 복귀 (예: 혜택 화면의 '티켓 충전소' → /tickets).
   // router 파라미터를 쓰면 이 화면이 리마운트되어 웹뷰가 처음부터 다시 로드되므로
@@ -187,9 +208,11 @@ export default function HomeScreen() {
   // 토큰 핸드오프: 웹뷰 쿠키 세션을 Bearer 토큰으로 교환해 네이티브 화면이 쓰게 한다.
   // 로그아웃(401)만 토큰 삭제로 취급하고, 그 외 실패(레이트리밋 등)는 무시한다.
   const lastHandoffAt = useRef(0);
-  const requestAuthHandoff = useCallback(() => {
+  // force=true: 웹이 계정 변경(로그인/로그아웃)을 알린 경우 — throttle 무시하고 즉시 재핸드오프.
+  // (그래야 네이티브 토큰이 이전 계정으로 남아 데이터가 교차되는 P2를 막는다.)
+  const requestAuthHandoff = useCallback((force = false) => {
     const now = Date.now();
-    if (now - lastHandoffAt.current < 60_000) return;
+    if (!force && now - lastHandoffAt.current < 60_000) return;
     lastHandoffAt.current = now;
     webViewRef.current?.injectJavaScript(
       "(function(){try{fetch('/api/auth/app-token',{method:'POST',credentials:'same-origin'," +
@@ -428,6 +451,13 @@ export default function HomeScreen() {
         return;
       }
 
+      if (data.type === 'auth:refresh') {
+        // 웹이 계정 변경(로그인/로그아웃)을 알림 — throttle 무시하고 즉시 재핸드오프.
+        // app-token이 새 토큰(로그인) 또는 401→auth:none(로그아웃)으로 응답한다.
+        requestAuthHandoff(true);
+        return;
+      }
+
       if (data.type === 'push:getToken') {
         sendPushTokenToWeb();
         return;
@@ -467,7 +497,7 @@ export default function HomeScreen() {
           webViewRef.current?.injectJavaScript(rejectKakaoLoginScript(id, message));
         });
     },
-    [sendPushTokenToWeb],
+    [sendPushTokenToWeb, requestAuthHandoff],
   );
 
   // onLoadEnd 는 로드 "실패" 시에도 불린다(onError 직후). 실패한 로드에
@@ -511,7 +541,7 @@ export default function HomeScreen() {
           onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
           onLoadEnd={onLoadEnd}
           onMessage={onMessage}
-          injectedJavaScriptBeforeContentLoaded={KAKAO_BRIDGE_INJECTED_JS}
+          injectedJavaScriptBeforeContentLoaded={beforeContentLoadedJS}
           onError={() => {
             lastLoadFailed.current = true;
             setFirstLoadDone(true);
