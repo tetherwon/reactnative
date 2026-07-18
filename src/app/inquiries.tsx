@@ -57,7 +57,7 @@ export default function InquiriesScreen() {
       let mounted = true;
       const alive = () => mounted;
       // 답변 받을 이메일 자동 채움 (수정 가능)
-      apiFetch<{ user?: { email?: string } }>('/api/me')
+      apiFetch<{ user?: { email?: string } }>('/api/auth/me')
         .then((d) => {
           if (alive() && d.user?.email) setEmail((cur) => cur || String(d.user!.email));
         })

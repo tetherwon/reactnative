@@ -85,6 +85,7 @@ const NATIVE_SCREEN_PATHS: { path: string; screen: string; needsAuth: boolean }[
   { path: '/invite', screen: 'invite', needsAuth: true },
   { path: '/roulette-history', screen: 'roulette-history', needsAuth: true },
   { path: '/store', screen: 'store', needsAuth: false },
+  { path: '/tournament', screen: 'tournament', needsAuth: false },
 ];
 
 function matchNativeScreenPath(url: string, hasToken: boolean): string | null {
