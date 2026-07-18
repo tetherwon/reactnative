@@ -61,8 +61,9 @@ export default function CsScreen() {
           {FAQS.map((f, i) => (
             <View key={i} style={styles.faqItem}>
               <Pressable style={styles.faqQ} onPress={() => toggle(i)}>
+                <Text style={styles.faqQBadge}>Q.</Text>
                 <Text style={styles.faqQText}>{f.q}</Text>
-                <Text style={[styles.faqChevron, openIdx === i && styles.faqChevronOpen]}>›</Text>
+                <Text style={styles.faqToggle}>{openIdx === i ? '−' : '+'}</Text>
               </Pressable>
               {openIdx === i && <Text style={styles.faqA}>{f.a}</Text>}
             </View>
@@ -138,19 +139,36 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  faqList: { marginBottom: 24 },
-  faqItem: { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  faqList: { marginBottom: 24, gap: 10 },
+  faqItem: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#f1f3f5',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 1,
+  },
   faqQ: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 8,
   },
-  faqQText: { flex: 1, fontSize: 14.5, fontWeight: '700', color: '#1e293b', lineHeight: 21 },
-  faqChevron: { fontSize: 20, color: '#94a3b8', transform: [{ rotate: '90deg' }] },
-  faqChevronOpen: { transform: [{ rotate: '-90deg' }] },
-  faqA: { fontSize: 13.5, color: '#64748b', lineHeight: 21, paddingBottom: 14 },
+  faqQBadge: { fontSize: 14, fontWeight: '800', color: '#3182f6' },
+  faqQText: { flex: 1, fontSize: 14, fontWeight: '700', color: '#191f28', lineHeight: 21 },
+  faqToggle: { fontSize: 18, color: '#8b95a1', fontWeight: '400' },
+  faqA: {
+    fontSize: 13,
+    color: '#8b95a1',
+    lineHeight: 21,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
   partnerCard: {
     borderWidth: 1.5,
     borderColor: '#e2e8f0',
