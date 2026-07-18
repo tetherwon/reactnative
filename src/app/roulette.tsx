@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Dimensions,
   Modal,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   runOnJS,
   useAnimatedStyle,
@@ -69,10 +70,21 @@ export default function RouletteScreen() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const rotation = useSharedValue(0);
-  const currentAngle = useRef(0);
   const wheelStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.value}deg` }],
   }));
+
+  // 누르는 즉시 등속 회전 시작(0.8초/바퀴) — 서버 응답을 기다리는 동안 멈춰 보이지 않게.
+  // 응답이 오면 현재 각도에서 이어받아 감속 착지한다.
+  const startIdleSpin = useCallback(() => {
+    const current = rotation.value;
+    rotation.value = withTiming(current + 360 * 1000, {
+      duration: 800 * 1000,
+      easing: Easing.linear,
+    });
+    // rotation 은 reanimated shared value(안정 참조)라 deps 불필요
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadAll = useCallback(() => {
     apiFetch<Status>('/api/roulette/status')
@@ -116,31 +128,39 @@ export default function RouletteScreen() {
     setErrorMsg('');
     setSpinning(true);
     haptics.tap();
+    startIdleSpin();
     apiFetch<SpinResult>('/api/roulette/spin', { method: 'POST' })
       .then((res) => {
         setStatus((s) => (s ? { ...s, ticket_count: res.ticket_count } : s));
         const idx = WHEEL_ORDER.indexOf(res.prize_key);
         const safeIdx = idx >= 0 ? idx : 0;
         // 웹(roulette-inline-1.js)과 동일한 정지각 계산:
-        // 포인터(top)에 슬라이스 중심이 오도록 시계방향 5바퀴 + 보정
+        // 포인터(top)에 슬라이스 중심이 오도록 현재 각도에서 3바퀴 + 보정 후 감속 착지
+        cancelAnimation(rotation);
+        const current = rotation.value;
         const desiredStop = normalizeDeg(-(safeIdx * SLICE_DEG + SLICE_DEG / 2));
-        const adjustment = normalizeDeg(desiredStop - normalizeDeg(currentAngle.current));
-        const target = currentAngle.current + 360 * 5 + adjustment;
-        currentAngle.current = target;
+        const adjustment = normalizeDeg(desiredStop - normalizeDeg(current));
+        const target = current + 360 * 3 + adjustment;
         rotation.value = withTiming(
           target,
-          { duration: 4000, easing: Easing.out(Easing.poly(4)) },
+          { duration: 3000, easing: Easing.out(Easing.poly(4)) },
           (finished) => {
             if (finished) runOnJS(onSpinDone)(res);
           },
         );
       })
       .catch((e) => {
+        // 부드럽게 멈추고 에러 표시
+        cancelAnimation(rotation);
+        rotation.value = withTiming(rotation.value + 120, {
+          duration: 500,
+          easing: Easing.out(Easing.quad),
+        });
         setSpinning(false);
         setErrorMsg(e instanceof ApiError ? e.message : '잠깐 문제가 생겼어요. 다시 시도해 주세요.');
         haptics.error();
       });
-  }, [spinning, orderMismatch, status, rotation, onSpinDone]);
+  }, [spinning, orderMismatch, status, rotation, startIdleSpin, onSpinDone]);
 
   const checkIn = useCallback(() => {
     haptics.tap();
