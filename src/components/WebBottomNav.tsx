@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { isNativeScreenEnabled } from '@/lib/api';
+import { getTokenSync, isNativeScreenEnabled } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 import { requestWebNav } from '@/lib/webNav';
 
@@ -23,9 +23,10 @@ function openWeb(path: string) {
 type TabKey = 'home' | 'point-draw' | 'discount-log' | 'benefit' | 'profile';
 
 // 각 탭의 네이티브 라우트(있으면) — native_screens 스위치가 켜져 있을 때만 사용
-const NATIVE_ROUTES: Partial<Record<TabKey, { screen: string; route: string }>> = {
-  benefit: { screen: 'benefit', route: '/benefit' },
-  'discount-log': { screen: 'discount-log', route: '/discount-log' },
+const NATIVE_ROUTES: Partial<Record<TabKey, { screen: string; route: string; needsAuth: boolean }>> = {
+  benefit: { screen: 'benefit', route: '/benefit', needsAuth: true },
+  'discount-log': { screen: 'discount-log', route: '/discount-log', needsAuth: false },
+  'point-draw': { screen: 'point-draw', route: '/point-draw', needsAuth: true },
 };
 
 const WEB_PATHS: Record<TabKey, string> = {
@@ -105,7 +106,7 @@ export default function WebBottomNav({ active }: { active?: TabKey }) {
     if (tab === active) return;
     haptics.tap();
     const native = NATIVE_ROUTES[tab];
-    if (native && isNativeScreenEnabled(native.screen)) {
+    if (native && isNativeScreenEnabled(native.screen) && (!native.needsAuth || getTokenSync())) {
       // 웹뷰를 경유하지 않고 네이티브 화면 간 직접 전환
       router.replace(native.route);
       return;
