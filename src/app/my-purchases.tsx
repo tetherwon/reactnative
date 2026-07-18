@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Ellipse, Line, Path, Rect } from 'react-native-svg';
 
@@ -31,6 +31,7 @@ type LedgerItem = {
   key: string;
   created_at: number;
   logo: string | null;
+  merchant?: string;
   letter: string;
   icon: 'cash' | 'checkin' | 'ticket' | 'point' | null;
   bg: string;
@@ -54,6 +55,26 @@ function colorOf(s: string): [string, string] {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return PALETTE[h % PALETTE.length];
 }
+
+// 웹 my_purchases-inline-1.js MERCHANT_TO_SLUG 그대로 (linkprice 코드 → 쇼핑몰 slug)
+const MERCHANT_TO_SLUG: Record<string, string> = {
+  woori: 'lottehome', applecom: 'apple', ctrip: 'trip', cjbrand: 'cjmarket',
+  stories: 'otherstories', charlesnk: 'charleskeith', benetton1: 'benetton',
+  ashford1: 'ashford', nordvpn2: 'nordvpn', exvpn: 'expressvpn',
+  cappstory: 'appstory', kbbook: 'kyobo', mycredit1: 'nicecredit',
+  '60saju': 'saju60', re4akor: 'raileurope',
+};
+
+// 상대 경로(/static/...)는 BASE_URL을 붙여 절대 URL로 — RN <Image uri>는 절대 URL만 로드.
+// 이게 없어서 서버가 준 뽑기/쇼핑몰 로고(상대경로)가 안 뜨고 회색으로 보였다.
+function absLogo(path?: string | null): string | null {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  return encodeURI(BASE_URL + path);
+}
+
+// 내역 리스트 최대 높이 — 넘치면 리스트 안에서만 스크롤(페이지가 무한히 길어지지 않게)
+const LEDGER_MAX_H = Math.round(Dimensions.get('window').height * 0.52);
 
 // (i) 설명 문구 — 웹 my_purchases-inline-2.js TEXT 와 동일 (강조 태그 제외)
 const INFO_TEXT: Record<string, string> = {
@@ -152,10 +173,31 @@ export default function MyPurchasesScreen() {
   const [pointPending, setPointPending] = useState(0);
   const [pointItems, setPointItems] = useState<LedgerItem[] | null>(null);
   const [infoKey, setInfoKey] = useState<string | null>(null);
+  // slug → logoImg (쇼핑몰 로고 해석용). /api/shops SWR 캐시.
+  const [shopLogos, setShopLogos] = useState<Record<string, string>>({});
+
+  // merchant_id → 쇼핑몰 로고(절대 URL). 웹 resolveShop 과 동일 규칙(코드→slug 매핑 포함).
+  const resolveShopLogo = useCallback(
+    (mid?: string | null): string | null => {
+      if (!mid) return null;
+      const key = String(mid).toLowerCase();
+      const slug = MERCHANT_TO_SLUG[key] || key;
+      return absLogo(shopLogos[slug] || null);
+    },
+    [shopLogos],
+  );
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+      apiFetchSWR<{ shops?: { slug?: string; logoImg?: string }[] }>('/api/shops', (d) => {
+        if (!alive) return;
+        const map: Record<string, string> = {};
+        (d.shops || []).forEach((s) => {
+          if (s.slug && s.logoImg) map[s.slug] = s.logoImg;
+        });
+        setShopLogos(map);
+      }).catch(() => {});
       apiFetchSWR<Overview>('/api/me/overview', (d) => {
         if (!alive) return;
         const basePoints = Number(d.user?.points || 0);
@@ -169,6 +211,7 @@ export default function MyPurchasesScreen() {
             key: `cb-${i}-${it.created_at}`,
             created_at: Number(it.created_at || 0),
             logo: null,
+            merchant: shop,
             letter: shop.charAt(0).toUpperCase(),
             icon: null,
             bg,
@@ -227,7 +270,7 @@ export default function MyPurchasesScreen() {
           return {
             key: `pt-${i}-${ev.created_at}`,
             created_at: Number(ev.created_at || 0),
-            logo: ev.logo || null,
+            logo: absLogo(ev.logo),
             letter: '',
             icon: 'point',
             bg: isDraw ? '#fff3e8' : delta < 0 ? '#fef1f2' : '#f3efff',
@@ -262,17 +305,24 @@ export default function MyPurchasesScreen() {
       );
     }
     let lastKey = '';
-    return items.map((it) => {
+    return (
+      <ScrollView
+        style={styles.ledgerScroll}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}
+      >
+        {items.map((it) => {
       const groupKey = fmtGroupDate(it.created_at);
       const showHead = groupKey !== lastKey;
       lastKey = groupKey;
+      const logoUri = it.logo || resolveShopLogo(it.merchant);
       return (
         <View key={it.key}>
           {showHead && <Text style={styles.dateHead}>{groupKey}</Text>}
           <View style={styles.item}>
-            {it.logo ? (
+            {logoUri ? (
               <View style={[styles.avatar, styles.avatarLogo]}>
-                <Image source={{ uri: it.logo }} style={styles.avatarImg} contentFit="contain" />
+                <Image source={{ uri: logoUri }} style={styles.avatarImg} contentFit="contain" />
               </View>
             ) : (
               <View style={[styles.avatar, { backgroundColor: it.bg }]}>
@@ -300,7 +350,9 @@ export default function MyPurchasesScreen() {
           </View>
         </View>
       );
-    });
+        })}
+      </ScrollView>
+    );
   };
 
   const summary = (
@@ -531,6 +583,7 @@ const styles = StyleSheet.create({
   filterTabText: { fontSize: 12, fontWeight: '700', color: '#8b95a1' },
   filterTabTextActive: { color: '#ffffff' },
   loading: { textAlign: 'center', color: '#8b95a1', paddingVertical: 40, fontSize: 14 },
+  ledgerScroll: { maxHeight: LEDGER_MAX_H },
   dateHead: { fontSize: 12.5, fontWeight: '600', color: '#a2aab5', paddingTop: 14, paddingBottom: 4, paddingHorizontal: 2 },
   item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 2 },
   avatar: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
