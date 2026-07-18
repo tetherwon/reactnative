@@ -1,7 +1,7 @@
 import { useNetInfo } from '@react-native-community/netinfo';
 import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import * as Notifications from 'expo-notifications';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -32,6 +32,15 @@ import {
   isWebViewNavigable,
   openExternalUrl,
 } from '@/lib/externalLinks';
+import {
+  BASE_URL,
+  clearToken,
+  getToken,
+  getTokenSync,
+  isNativeScreenEnabled,
+  loadAppConfig,
+  setToken,
+} from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 import {
   KAKAO_BRIDGE_INJECTED_JS,
@@ -55,6 +64,30 @@ const APP_AUTH_REDIRECT_PREFIX = 'webview://auth';
 // 웹뷰 로딩 화면을 네이티브 스플래시(파란 배경 + 곰돌이)와 이어지게 하기 위해
 // 같은 아이콘을 쓴다. icon.png 배경색(#1371F9)이 로딩 배경과 같아 이음새 없음.
 const LOADING_BEAR = require('../../assets/images/icon.png');
+
+// 네이티브로 전환 가능한 화면: 웹 경로 → app-config native_screens 의 화면 키.
+// 서버 목록에 키가 있고 인증 토큰이 있을 때만 웹뷰 이동을 가로채 네이티브로 연다.
+const NATIVE_SCREEN_PATHS: [path: string, screen: string][] = [
+  ['/benefit', 'benefit'],
+  ['/roulette', 'roulette'],
+];
+
+function matchNativeScreenPath(url: string): string | null {
+  const m = url.match(/^https:\/\/shoppinglog\.store(\/[a-z-]+)\/?$/i);
+  if (!m) return null;
+  const found = NATIVE_SCREEN_PATHS.find(([path]) => path === m[1]);
+  if (!found || !isNativeScreenEnabled(found[1])) return null;
+  return found[0];
+}
+
+// 웹(spa-nav.js)이 SPA 전환 대신 최상위 이동을 하도록 네이티브 경로를 알려준다
+// (최상위 이동이어야 onShouldStartLoadWithRequest 가 가로챌 수 있다).
+function nativePathsScript(): string {
+  const paths = NATIVE_SCREEN_PATHS.filter(([, screen]) => isNativeScreenEnabled(screen)).map(
+    ([path]) => path,
+  );
+  return `window.__slNativePaths=${JSON.stringify(paths)};true;`;
+}
 
 
 export default function HomeScreen() {
@@ -89,6 +122,49 @@ export default function HomeScreen() {
     registerForPushNotificationsAsync();
   }, []);
 
+  // 네이티브 화면(혜택·룰렛)이 스택 위에 떠 있는 동안엔 이 화면(웹뷰)의
+  // 하드웨어 뒤로가기·딥링크 핸들러가 개입하면 안 된다.
+  const pathname = usePathname();
+  const isWebViewFocused = useRef(true);
+  useEffect(() => {
+    isWebViewFocused.current = pathname === '/';
+  }, [pathname]);
+
+  // 하이브리드 부팅: 토큰 동기 캐시 예열 + 원격 native_screens 로드(캐시 즉시, 네트워크 갱신)
+  useEffect(() => {
+    getToken();
+    loadAppConfig();
+  }, []);
+
+  // 네이티브 화면 → 웹뷰 페이지 복귀 (예: 혜택 화면의 '티켓 충전소' → /tickets)
+  const { navUrl, navTs } = useLocalSearchParams<{ navUrl?: string; navTs?: string }>();
+  const handledNavKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (typeof navUrl !== 'string' || !navUrl.startsWith('/')) return;
+    const key = `${navTs ?? ''}:${navUrl}`;
+    if (handledNavKey.current === key) return;
+    handledNavKey.current = key;
+    goTo(BASE_URL + navUrl);
+  }, [navUrl, navTs, goTo]);
+
+  // 토큰 핸드오프: 웹뷰 쿠키 세션을 Bearer 토큰으로 교환해 네이티브 화면이 쓰게 한다.
+  // 로그아웃(401)만 토큰 삭제로 취급하고, 그 외 실패(레이트리밋 등)는 무시한다.
+  const lastHandoffAt = useRef(0);
+  const requestAuthHandoff = useCallback(() => {
+    const now = Date.now();
+    if (now - lastHandoffAt.current < 60_000) return;
+    lastHandoffAt.current = now;
+    webViewRef.current?.injectJavaScript(
+      "(function(){try{fetch('/api/auth/app-token',{method:'POST',credentials:'same-origin'," +
+        "headers:{'X-Requested-With':'XMLHttpRequest'}}).then(function(r){" +
+        'if(r.ok){r.json().then(function(d){if(d&&d.token&&window.ReactNativeWebView)' +
+        "window.ReactNativeWebView.postMessage(JSON.stringify({type:'auth:token',token:d.token}))});return;}" +
+        'if(r.status===401&&window.ReactNativeWebView)' +
+        "window.ReactNativeWebView.postMessage(JSON.stringify({type:'auth:none'}))" +
+        '}).catch(function(){})}catch(e){}})();true;',
+    );
+  }, []);
+
   // 오퍼월이 닫히면 웹에 알려 잔액을 갱신시킨다. 리스너는 앱 생애주기 동안 1회만 등록.
   // (RN → 웹 방향 계약: Shopping_log 레포 docs/RN_BRIDGE.md)
   useEffect(() => {
@@ -111,6 +187,8 @@ export default function HomeScreen() {
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      // 네이티브 화면이 위에 떠 있으면 기본 동작(스택 pop)에 맡긴다
+      if (!isWebViewFocused.current) return false;
       if (canGoBack.current) {
         webViewRef.current?.goBack();
         return true;
@@ -232,6 +310,16 @@ export default function HomeScreen() {
       // 웹뷰 안에서 진행되는 소셜 로그인(애플 등)도 마지막에 딥링크로 끝나므로
       // 표식을 남겨야 라우터 경로가 토큰을 수용한다.
       if (isOAuthWebStartUrl(request.url)) markOAuthPending();
+      // 네이티브 전환 화면(app-config native_screens): 토큰이 있어야 API를 부를 수
+      // 있으므로 토큰 없으면(게스트/핸드오프 전) 웹뷰가 그대로 처리한다.
+      if (request.isTopFrame !== false && getTokenSync()) {
+        const nativePath = matchNativeScreenPath(request.url);
+        if (nativePath) {
+          haptics.tap();
+          router.push(nativePath);
+          return false;
+        }
+      }
       if (!isWebViewNavigable(request.url)) {
         openExternalUrl(request.url);
         return false;
@@ -278,10 +366,28 @@ export default function HomeScreen() {
   // - adpopcorn:openOfferwall: 오퍼월 열기 → 닫히면 SLNative.onAdpopcornClosed 호출
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
-      let data: { type?: string; id?: string; adUnit?: unknown; userId?: unknown };
+      let data: {
+        type?: string;
+        id?: string;
+        adUnit?: unknown;
+        userId?: unknown;
+        token?: unknown;
+      };
       try {
         data = JSON.parse(event.nativeEvent.data);
       } catch {
+        return;
+      }
+
+      if (data.type === 'auth:token') {
+        if (typeof data.token === 'string' && data.token.length > 0) {
+          setToken(data.token);
+        }
+        return;
+      }
+
+      if (data.type === 'auth:none') {
+        clearToken();
         return;
       }
 
@@ -337,6 +443,9 @@ export default function HomeScreen() {
     lastLoadFailed.current = false;
     isLoaded.current = true;
     if (failed) return;
+    // 네이티브 전환 경로 목록을 웹(spa-nav.js)에 알리고, 인증 토큰 핸드오프를 요청한다
+    webViewRef.current?.injectJavaScript(nativePathsScript());
+    requestAuthHandoff();
     // 토큰을 먼저 심는다 — 아래 pendingUrl 이동이 최종 목적지가 되더라도
     // localStorage 저장은 유지되므로 둘 다 살릴 수 있다.
     if (pendingAuthToken.current) {
