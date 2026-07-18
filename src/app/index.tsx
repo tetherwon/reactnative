@@ -67,25 +67,29 @@ const APP_AUTH_REDIRECT_PREFIX = 'webview://auth';
 const LOADING_BEAR = require('../../assets/images/icon.png');
 
 // 네이티브로 전환 가능한 화면: 웹 경로 → app-config native_screens 의 화면 키.
-// 서버 목록에 키가 있고 인증 토큰이 있을 때만 웹뷰 이동을 가로채 네이티브로 연다.
-const NATIVE_SCREEN_PATHS: [path: string, screen: string][] = [
-  ['/benefit', 'benefit'],
-  ['/roulette', 'roulette'],
+// 서버 목록에 키가 있을 때만 웹뷰 이동을 가로채 네이티브로 연다.
+// needsAuth 화면은 인증 토큰(핸드오프 완료)까지 있어야 가로챈다 — 게스트는 웹 흐름 유지.
+const NATIVE_SCREEN_PATHS: { path: string; screen: string; needsAuth: boolean }[] = [
+  { path: '/benefit', screen: 'benefit', needsAuth: true },
+  { path: '/roulette', screen: 'roulette', needsAuth: true },
+  { path: '/discount-log', screen: 'discount-log', needsAuth: false },
+  { path: '/cs', screen: 'cs', needsAuth: false },
 ];
 
-function matchNativeScreenPath(url: string): string | null {
+function matchNativeScreenPath(url: string, hasToken: boolean): string | null {
   const m = url.match(/^https:\/\/shoppinglog\.store(\/[a-z-]+)\/?$/i);
   if (!m) return null;
-  const found = NATIVE_SCREEN_PATHS.find(([path]) => path === m[1]);
-  if (!found || !isNativeScreenEnabled(found[1])) return null;
-  return found[0];
+  const found = NATIVE_SCREEN_PATHS.find((s) => s.path === m[1]);
+  if (!found || !isNativeScreenEnabled(found.screen)) return null;
+  if (found.needsAuth && !hasToken) return null;
+  return found.path;
 }
 
 // 웹(spa-nav.js)이 SPA 전환 대신 최상위 이동을 하도록 네이티브 경로를 알려준다
 // (최상위 이동이어야 onShouldStartLoadWithRequest 가 가로챌 수 있다).
 function nativePathsScript(): string {
-  const paths = NATIVE_SCREEN_PATHS.filter(([, screen]) => isNativeScreenEnabled(screen)).map(
-    ([path]) => path,
+  const paths = NATIVE_SCREEN_PATHS.filter((s) => isNativeScreenEnabled(s.screen)).map(
+    (s) => s.path,
   );
   return `window.__slNativePaths=${JSON.stringify(paths)};true;`;
 }
@@ -323,10 +327,9 @@ export default function HomeScreen() {
       // 웹뷰 안에서 진행되는 소셜 로그인(애플 등)도 마지막에 딥링크로 끝나므로
       // 표식을 남겨야 라우터 경로가 토큰을 수용한다.
       if (isOAuthWebStartUrl(request.url)) markOAuthPending();
-      // 네이티브 전환 화면(app-config native_screens): 토큰이 있어야 API를 부를 수
-      // 있으므로 토큰 없으면(게스트/핸드오프 전) 웹뷰가 그대로 처리한다.
-      if (request.isTopFrame !== false && getTokenSync()) {
-        const nativePath = matchNativeScreenPath(request.url);
+      // 네이티브 전환 화면(app-config native_screens)
+      if (request.isTopFrame !== false) {
+        const nativePath = matchNativeScreenPath(request.url, !!getTokenSync());
         if (nativePath) {
           haptics.tap();
           router.push(nativePath);
