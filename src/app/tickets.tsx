@@ -173,7 +173,12 @@ export default function TicketsScreen() {
             '친구초대',
             '친구가 가입하면 지급',
             '+1장',
-            () => openWeb('/invite'),
+            () => {
+              if (isNativeScreenEnabled('invite')) {
+                haptics.tap();
+                router.push('/invite');
+              } else openWeb('/invite');
+            },
           )}
           {missionCard(
             <MissionIcon kind="shop" />,
