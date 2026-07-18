@@ -22,6 +22,8 @@ export async function getToken(): Promise<string | null> {
 }
 
 export async function setToken(token: string): Promise<void> {
+  // 계정이 바뀌면(다른 토큰) 이전 계정의 SWR 캐시를 비운다 — 계정 전환 오염 방지
+  if (cachedToken && cachedToken !== token) await purgeSwrCache();
   cachedToken = token;
   try {
     await AsyncStorage.setItem(TOKEN_KEY, token);
@@ -33,6 +35,7 @@ export async function clearToken(): Promise<void> {
   try {
     await AsyncStorage.removeItem(TOKEN_KEY);
   } catch {}
+  await purgeSwrCache();
 }
 
 /** 동기 조회 — 내비게이션 인터셉트처럼 await 할 수 없는 곳용. getToken()이 한 번
@@ -78,6 +81,50 @@ export async function apiFetch<T = unknown>(
     throw new ApiError(res.status, detail);
   }
   return (await res.json()) as T;
+}
+
+// ── SWR 캐시 (웹 SLUtils.swrJson 과 같은 패턴) ───────────────────────────────
+// 마지막 응답을 AsyncStorage 에 저장해 화면 진입 즉시 그리고, 네트워크로 갱신한다.
+// 할인로그처럼 자주 안 바뀌는 목록이 "불러오는 중"을 보여주지 않게 하는 용도.
+
+const SWR_PREFIX = 'sl_swr_native:';
+
+export async function purgeSwrCache(): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const mine = keys.filter((k) => k.startsWith(SWR_PREFIX));
+    if (mine.length) await AsyncStorage.multiRemove(mine);
+  } catch {}
+}
+
+/** 캐시가 있으면 onData(data, true)로 즉시 1회 호출한 뒤, 네트워크 응답으로
+ * onData(data, false)를 다시 호출한다. 네트워크 실패 시 캐시가 이미 그려졌으면
+ * 조용히 넘어가고, 캐시도 없었으면 에러를 던진다. */
+export async function apiFetchSWR<T>(
+  path: string,
+  onData: (data: T, fromCache: boolean) => void,
+  ttlMs = 10 * 60_000,
+): Promise<void> {
+  let served = false;
+  try {
+    const raw = await AsyncStorage.getItem(SWR_PREFIX + path);
+    if (raw) {
+      const obj = JSON.parse(raw) as { ts: number; data: T };
+      if (obj && obj.data !== undefined && Date.now() - (obj.ts || 0) < ttlMs) {
+        served = true;
+        onData(obj.data, true);
+      }
+    }
+  } catch {}
+  try {
+    const data = await apiFetch<T>(path);
+    try {
+      await AsyncStorage.setItem(SWR_PREFIX + path, JSON.stringify({ ts: Date.now(), data }));
+    } catch {}
+    onData(data, false);
+  } catch (e) {
+    if (!served) throw e;
+  }
 }
 
 // ── 원격 설정 (/api/app-config) ──────────────────────────────────────────────

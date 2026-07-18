@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Polyline, Rect } from 'react-native-svg';
 
 import WebBottomNav from '@/components/WebBottomNav';
-import { apiFetch, BASE_URL } from '@/lib/api';
+import { apiFetchSWR, BASE_URL } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 import { requestWebNav } from '@/lib/webNav';
 
@@ -83,8 +83,8 @@ export default function DiscountLogScreen() {
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      apiFetch<{ items: Coupon[] }>('/api/discount-coupons')
-        .then((d) => {
+      // SWR: 마지막 목록 즉시 표시 + 백그라운드 갱신 ("불러오는 중" 최소화)
+      apiFetchSWR<{ items: Coupon[] }>('/api/discount-coupons', (d) => {
           if (!alive) return;
           const items = d.items || [];
           // 몰 이름 기준 그룹핑 (첫 등장 순서 유지) — 웹과 동일 로직
@@ -102,8 +102,7 @@ export default function DiscountLogScreen() {
             g.coupons.push(it);
           });
           setGroups(out);
-        })
-        .catch(() => {
+        }).catch(() => {
           if (alive) setFailed(true);
         });
       return () => {

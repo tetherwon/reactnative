@@ -21,7 +21,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import WebBottomNav from '@/components/WebBottomNav';
-import { apiFetch, ApiError } from '@/lib/api';
+import { apiFetch, ApiError, apiFetchSWR } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 import { markWebStateDirty, requestWebNav } from '@/lib/webNav';
 
@@ -91,22 +91,19 @@ export default function RouletteScreen() {
   }, []);
 
   const loadAll = useCallback(() => {
-    apiFetch<Status>('/api/roulette/status')
-      .then(setStatus)
-      .catch((e) => {
-        if (e instanceof ApiError && e.status === 401) router.back();
-      });
-    apiFetch<{ prizes: Prize[] }>('/api/roulette/prizes')
-      .then((d) => {
-        const list = d.prizes || [];
-        setPrizes(list);
-        const keys = list.map((p) => p.key);
-        setOrderMismatch(keys.join(',') !== WHEEL_ORDER.join(','));
-      })
-      .catch(() => {});
-    apiFetch<{ winners: Winner[] }>('/api/roulette/recent')
-      .then((d) => setWinners((d.winners || []).slice(0, 5)))
-      .catch(() => {});
+    // SWR: 마지막 상태 즉시 표시 + 백그라운드 갱신 (티켓 수는 네트워크 값으로 곧 덮임)
+    apiFetchSWR<Status>('/api/roulette/status', setStatus, 5 * 60_000).catch((e) => {
+      if (e instanceof ApiError && e.status === 401) router.back();
+    });
+    apiFetchSWR<{ prizes: Prize[] }>('/api/roulette/prizes', (d) => {
+      const list = d.prizes || [];
+      setPrizes(list);
+      const keys = list.map((p) => p.key);
+      setOrderMismatch(keys.join(',') !== WHEEL_ORDER.join(','));
+    }).catch(() => {});
+    apiFetchSWR<{ winners: Winner[] }>('/api/roulette/recent', (d) =>
+      setWinners((d.winners || []).slice(0, 5)),
+    ).catch(() => {});
   }, []);
 
   useFocusEffect(

@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import WebBottomNav from '@/components/WebBottomNav';
-import { apiFetch, BASE_URL, isNativeScreenEnabled } from '@/lib/api';
+import { apiFetchSWR, BASE_URL, isNativeScreenEnabled } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 import { requestWebNav } from '@/lib/webNav';
 
@@ -48,12 +48,11 @@ export default function BenefitScreen() {
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      apiFetch<Overview>('/api/me/overview')
-        .then((d) => {
+      // SWR: 마지막 잔액 즉시 표시 + 백그라운드 갱신
+      apiFetchSWR<Overview>('/api/me/overview', (d) => {
           if (alive && d.user) setPoints(Number(d.user.points || 0));
-        })
-        .catch(() => {
-          // 401 등 — 웹뷰로 돌아가 웹의 게스트 흐름을 따르게 한다
+        }).catch(() => {
+          // 401 등 (캐시도 없음) — 웹뷰로 돌아가 웹의 게스트 흐름을 따르게 한다
           if (alive) router.back();
         });
       return () => {
