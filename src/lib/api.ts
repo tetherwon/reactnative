@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // 인증은 웹뷰 쿠키 세션을 POST /api/auth/app-token 으로 교환한 Bearer JWT
 // (index.tsx 의 토큰 핸드오프가 저장) — 웹과 같은 계정/세션을 공유한다.
 
-export const BASE_URL = 'https://shoppinglog.store';
+export const BASE_URL = process.env.EXPO_PUBLIC_DEV_BASE_URL || 'https://shoppinglog.store';
 
 const TOKEN_KEY = 'sl_native_token';
 const APP_CONFIG_KEY = 'sl_app_config_v1';

@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -110,7 +110,7 @@ export default function WebBottomNav({ active }: { active?: TabKey }) {
     const native = NATIVE_ROUTES[tab];
     if (native && isNativeScreenEnabled(native.screen) && (!native.needsAuth || getTokenSync())) {
       // 웹뷰를 경유하지 않고 네이티브 화면 간 직접 전환
-      router.replace(native.route);
+      router.replace(native.route as Href);
       return;
     }
     openWeb(WEB_PATHS[tab]);

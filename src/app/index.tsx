@@ -1,7 +1,7 @@
 import { useNetInfo } from '@react-native-community/netinfo';
 import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import * as Notifications from 'expo-notifications';
-import { router, useLocalSearchParams, usePathname } from 'expo-router';
+import { router, useLocalSearchParams, usePathname, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -353,7 +353,7 @@ export default function HomeScreen() {
         const nativePath = matchNativeScreenPath(request.url, !!getTokenSync());
         if (nativePath) {
           haptics.tap();
-          router.push(nativePath);
+          router.push(nativePath as Href);
           return false;
         }
       }

@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -73,7 +73,7 @@ export default function BenefitScreen() {
     const screen = NATIVE_ROW_SCREENS[row.key];
     if (screen && isNativeScreenEnabled(screen)) {
       haptics.tap();
-      router.push(row.path);
+      router.push(row.path as Href);
       return;
     }
     openWeb(row.path);
