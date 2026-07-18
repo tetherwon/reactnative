@@ -79,6 +79,7 @@ const NATIVE_SCREEN_PATHS: { path: string; screen: string; needsAuth: boolean }[
   { path: '/profile', screen: 'profile', needsAuth: true },
   { path: '/charge', screen: 'charge', needsAuth: true },
   { path: '/tickets', screen: 'tickets', needsAuth: true },
+  { path: '/kospi', screen: 'kospi', needsAuth: true },
 ];
 
 function matchNativeScreenPath(url: string, hasToken: boolean): string | null {

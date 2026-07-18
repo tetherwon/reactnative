@@ -66,6 +66,7 @@ export default function BenefitScreen() {
     roulette: 'roulette',
     charge: 'charge',
     tickets: 'tickets',
+    kospi: 'kospi',
   };
   const onRowPress = (row: (typeof ROWS)[number]) => {
     const screen = NATIVE_ROW_SCREENS[row.key];
