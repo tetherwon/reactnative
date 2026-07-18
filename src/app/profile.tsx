@@ -218,7 +218,12 @@ export default function ProfileScreen() {
         {/* 쇼핑·적립 */}
         <Text style={styles.sectionLabel}>쇼핑·적립</Text>
         <View style={styles.menuSection}>
-          {menuRow('쿠폰함', () => openWeb('/coupons'))}
+          {menuRow('쿠폰함', () => {
+            if (isNativeScreenEnabled('coupons')) {
+              haptics.tap();
+              router.push('/coupons');
+            } else openWeb('/coupons');
+          })}
           {menuRow('캐시 내역', () => {
             if (isNativeScreenEnabled('my-purchases')) {
               haptics.tap();

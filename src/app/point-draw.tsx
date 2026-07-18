@@ -5,7 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import WebBottomNav from '@/components/WebBottomNav';
-import { apiFetch, ApiError, apiFetchSWR, BASE_URL } from '@/lib/api';
+import { apiFetch, ApiError, apiFetchSWR, BASE_URL, isNativeScreenEnabled } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 import { markWebStateDirty, requestWebNav } from '@/lib/webNav';
 
@@ -373,7 +373,10 @@ export default function PointDrawScreen() {
                   style={[styles.modalBtn, styles.modalBtnPrimary]}
                   onPress={() => {
                     setResult(null);
-                    openWeb('/coupons');
+                    if (isNativeScreenEnabled('coupons')) {
+                      haptics.tap();
+                      router.push('/coupons');
+                    } else openWeb('/coupons');
                   }}
                 >
                   <Text style={styles.modalBtnPrimaryText}>쿠폰함 보기</Text>
