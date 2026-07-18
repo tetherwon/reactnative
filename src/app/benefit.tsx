@@ -62,7 +62,11 @@ export default function BenefitScreen() {
   );
 
   // 네이티브 전환된 행이면 스위치가 켜져 있을 때 네이티브로 직행
-  const NATIVE_ROW_SCREENS: Record<string, string> = { roulette: 'roulette', charge: 'charge' };
+  const NATIVE_ROW_SCREENS: Record<string, string> = {
+    roulette: 'roulette',
+    charge: 'charge',
+    tickets: 'tickets',
+  };
   const onRowPress = (row: (typeof ROWS)[number]) => {
     const screen = NATIVE_ROW_SCREENS[row.key];
     if (screen && isNativeScreenEnabled(screen)) {
