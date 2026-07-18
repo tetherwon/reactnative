@@ -250,11 +250,9 @@ export default function PointDrawScreen() {
                     <Text style={styles.bandName} numberOfLines={1}>
                       {b.name}
                     </Text>
-                    <View style={[styles.bandPill, done && styles.bandPillDone]}>
-                      <Text style={[styles.bandPillText, done && styles.bandPillTextDone]}>
-                        {done ? '오늘 완료' : `${fmt(b.cost_points)}P`}
-                      </Text>
-                    </View>
+                    <Text style={[styles.bandPillText, done && styles.bandPillTextDone]}>
+                      {done ? '오늘 완료' : `${fmt(b.cost_points)}P`}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -290,11 +288,6 @@ export default function PointDrawScreen() {
                   아래 상품 중 하나가 <Text style={styles.bubbleBold}>랜덤</Text>으로 지급돼요
                 </Text>
               </View>
-              <Image
-                source={srvImg(current.mascot_img || '/static/orderbear.png')!}
-                style={styles.mascot}
-                contentFit="contain"
-              />
             </View>
 
             <View style={styles.itemGrid}>
@@ -457,10 +450,9 @@ const styles = StyleSheet.create({
   bandThumbTxt: { backgroundColor: '#eff4ff', alignItems: 'center', justifyContent: 'center' },
   bandThumbTxtLabel: { fontSize: 13, fontWeight: '800', color: '#3182f6' },
   bandName: { fontSize: 13, fontWeight: '700', color: '#191f28' },
-  bandPill: { backgroundColor: '#eff4ff', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
-  bandPillDone: { backgroundColor: '#f1f5f9' },
-  bandPillText: { fontSize: 11.5, fontWeight: '800', color: '#2272eb' },
-  bandPillTextDone: { color: '#94a3b8' },
+  // 알약 제거 — 그냥 파란 텍스트로 몇 포인트인지만 표기
+  bandPillText: { fontSize: 13, fontWeight: '800', color: '#3182f6' },
+  bandPillTextDone: { color: '#94a3b8', fontWeight: '700' },
   detailTop: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -475,16 +467,14 @@ const styles = StyleSheet.create({
   heroTitle: { fontSize: 20, fontWeight: '900', color: '#0f172a', letterSpacing: -0.4, marginTop: 6, marginBottom: 12 },
   heroRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 10 },
   bubble: {
+    flex: 1,
     backgroundColor: '#f1f5f9',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 14,
-    borderBottomLeftRadius: 4,
-    maxWidth: '62%',
   },
   bubbleText: { fontSize: 13, fontWeight: '600', color: '#334155', lineHeight: 19 },
   bubbleBold: { color: '#2272eb', fontWeight: '800' },
-  mascot: { width: 86, height: 86 },
   itemGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
   itemCard: {
     width: '48.7%',
@@ -505,7 +495,7 @@ const styles = StyleSheet.create({
   },
   itemCardWin: { transform: [{ scale: 1.06 }] },
   itemThumb: { width: '100%', height: 74, alignItems: 'center', justifyContent: 'center' },
-  itemImg: { width: 64, height: 64 },
+  itemImg: { width: 64, height: 64, borderRadius: 12 },
   itemBlank: { fontSize: 26, fontWeight: '900', color: '#94a3b8' },
   itemNoImg: { fontSize: 30 },
   itemBrand: { fontSize: 11, fontWeight: '700', color: '#8b95a1' },
