@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   Alert,
@@ -244,7 +244,10 @@ export default function ProfileScreen() {
               router.push('/cs');
             } else openWeb('/cs');
           })}
-          {menuRow('문의하기 · 내 문의 내역', () => openWeb('/profile?app=1'))}
+          {menuRow('문의하기 · 내 문의 내역', () => {
+            haptics.tap();
+            router.push('/inquiries' as Href);
+          })}
         </View>
 
         {/* 계정 */}
