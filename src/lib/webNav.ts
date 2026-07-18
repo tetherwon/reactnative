@@ -27,6 +27,20 @@ export function consumeWebStateDirty(): boolean {
   return dirty;
 }
 
+// 웹뷰에서 실행할 커맨드 (현재는 'logout' 하나): 네이티브 로그아웃 시 웹뷰의
+// 쿠키 세션·로컬 캐시도 함께 정리해야 두 세계의 로그인 상태가 일치한다.
+let webCommand: string | null = null;
+
+export function requestWebCommand(cmd: 'logout'): void {
+  webCommand = cmd;
+}
+
+export function consumeWebCommand(): string | null {
+  const c = webCommand;
+  webCommand = null;
+  return c;
+}
+
 export function setWebNavListener(fn: (path: string) => void): () => void {
   listener = fn;
   if (pending) {

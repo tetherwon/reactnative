@@ -27,6 +27,7 @@ const NATIVE_ROUTES: Partial<Record<TabKey, { screen: string; route: string; nee
   benefit: { screen: 'benefit', route: '/benefit', needsAuth: true },
   'discount-log': { screen: 'discount-log', route: '/discount-log', needsAuth: false },
   'point-draw': { screen: 'point-draw', route: '/point-draw', needsAuth: true },
+  profile: { screen: 'profile', route: '/profile', needsAuth: true },
 };
 
 const WEB_PATHS: Record<TabKey, string> = {

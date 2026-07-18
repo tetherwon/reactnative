@@ -42,7 +42,7 @@ import {
   setToken,
 } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
-import { consumeWebStateDirty, setWebNavListener } from '@/lib/webNav';
+import { consumeWebCommand, consumeWebStateDirty, setWebNavListener } from '@/lib/webNav';
 import {
   KAKAO_BRIDGE_INJECTED_JS,
   KAKAO_BRIDGE_MESSAGE_TYPE,
@@ -76,6 +76,7 @@ const NATIVE_SCREEN_PATHS: { path: string; screen: string; needsAuth: boolean }[
   { path: '/cs', screen: 'cs', needsAuth: false },
   { path: '/my-purchases', screen: 'my-purchases', needsAuth: true },
   { path: '/point-draw', screen: 'point-draw', needsAuth: true },
+  { path: '/profile', screen: 'profile', needsAuth: true },
 ];
 
 function matchNativeScreenPath(url: string, hasToken: boolean): string | null {
@@ -135,13 +136,25 @@ export default function HomeScreen() {
   const isWebViewFocused = useRef(true);
   useEffect(() => {
     isWebViewFocused.current = pathname === '/';
-    // 네이티브 화면에서 잔액 변동(룰렛 스핀·출석) 후 복귀: 웹 캐시를 지우고
-    // 새로고침해 상단 캐시·티켓 표시를 서버 값과 맞춘다 (SW 캐시라 리로드는 즉시).
-    if (pathname === '/' && isLoaded.current && consumeWebStateDirty()) {
-      webViewRef.current?.injectJavaScript(
-        'try{window.SLUtils&&window.SLUtils.clearMeCache&&window.SLUtils.clearMeCache();}catch(e){}' +
-          'location.reload();true;',
-      );
+    if (pathname === '/' && isLoaded.current) {
+      // 네이티브 로그아웃: 웹뷰 쿠키 세션·로컬 캐시까지 정리해 로그인 상태를 일치시킨다
+      if (consumeWebCommand() === 'logout') {
+        webViewRef.current?.injectJavaScript(
+          "fetch('/api/auth/logout',{method:'POST',credentials:'same-origin'," +
+            "headers:{'X-Requested-With':'XMLHttpRequest'}}).catch(function(){}).finally(function(){" +
+            "try{localStorage.removeItem('sl_token');window.SLUtils&&window.SLUtils.clearMeCache&&window.SLUtils.clearMeCache();}catch(e){}" +
+            "location.href='/';});true;",
+        );
+        return;
+      }
+      // 네이티브 화면에서 잔액 변동(룰렛 스핀·출석) 후 복귀: 웹 캐시를 지우고
+      // 새로고침해 상단 캐시·티켓 표시를 서버 값과 맞춘다 (SW 캐시라 리로드는 즉시).
+      if (consumeWebStateDirty()) {
+        webViewRef.current?.injectJavaScript(
+          'try{window.SLUtils&&window.SLUtils.clearMeCache&&window.SLUtils.clearMeCache();}catch(e){}' +
+            'location.reload();true;',
+        );
+      }
     }
   }, [pathname]);
 
