@@ -56,8 +56,11 @@ module.exports = {
     // 네이티브 모듈 추가. runtimeVersion(appVersion 정책)이 갈리므로 이 버전의
     // JS(OTA)는 같은 버전 바이너리에만 배포된다 — 모듈이 없는 구버전 앱이
     // 이 코드를 받아 죽는 일을 막는다. (1.2.0: 애드팝콘 오퍼월 추가,
-    // 1.3.1: 애드팝콘 매니페스트 앱키 이름 수정 — 네이티브 변경이라 새 빌드 필수)
-    version: '1.3.1',
+    // 1.3.1: 애드팝콘 매니페스트 앱키 이름 수정, 1.3.2: 카카오톡 패키지 가시성
+    // <queries> 선언 추가 — 콘솔 키 해시를 다 맞게 등록해도 이게 없으면
+    // Android 11+에서 카카오톡 설치 여부를 못 봐 항상 웹뷰 로그인으로 폴백함.
+    // 전부 네이티브 매니페스트 변경이라 새 빌드 필수)
+    version: '1.3.2',
     runtimeVersion: {
       policy: 'appVersion',
     },
@@ -163,6 +166,9 @@ module.exports = {
         './plugins/withAdpopcorn',
         { appKey: ADPOPCORN_APP_KEY, hashKey: ADPOPCORN_HASH_KEY },
       ],
+      // 카카오톡 앱-투-앱(원탭) 로그인에 필요한 패키지 가시성 선언. 콘솔 키 해시가
+      // 다 맞아도 이게 없으면 Android 11+에서 항상 웹뷰(아이디/비번) 로그인으로 빠진다.
+      './plugins/withKakaoQueries',
     ],
     experiments: {
       typedRoutes: true,
