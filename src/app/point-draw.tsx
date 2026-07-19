@@ -407,18 +407,18 @@ const styles = StyleSheet.create({
   balanceLabel: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
   balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   balanceAmount: { fontSize: 34, fontWeight: '800', color: '#ffffff', letterSpacing: -0.6 },
-  // 웹 .pd-balance-unit 과 동일 — 빨간 원형 P 코인 배지 (radial gradient는 solid+border로 근사)
+  // 웹 .pd-balance-unit 과 동일 — 파란 원형 P 코인 배지(진한 원 + 밝은 링)
   balanceCoin: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#ef4444',
-    borderWidth: 1.5,
-    borderColor: '#fca5a5',
+    backgroundColor: '#2f6be6',
+    borderWidth: 2.5,
+    borderColor: '#83aaf3',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  balanceCoinText: { fontSize: 15, fontWeight: '800', color: '#ffffff' },
+  balanceCoinText: { fontSize: 14, fontWeight: '800', color: '#ffffff' },
   balanceLink: {
     alignSelf: 'flex-start',
     marginTop: 12,
