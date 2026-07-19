@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 17, fontWeight: '800', color: '#0f172a' },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 40 },
-  banner: { width: '100%', aspectRatio: 2.618, borderRadius: 12, marginBottom: 20 },
+  banner: { width: '100%', aspectRatio: 335 / 148, borderRadius: 12, marginBottom: 20 },
   loading: { textAlign: 'center', color: '#8b95a1', paddingVertical: 40, fontSize: 14 },
   empty: { alignItems: 'center', paddingVertical: 48, paddingHorizontal: 20 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: '#191f28', marginBottom: 8 },

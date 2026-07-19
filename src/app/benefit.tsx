@@ -168,6 +168,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 22,
     paddingBottom: 20,
+    minHeight: 148, // 웹과 동일 — 홈 배너 335:148과 높이감 통일
     marginBottom: 14,
     shadowColor: '#3182f6',
     shadowOpacity: 0.32,
