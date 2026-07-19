@@ -12,7 +12,7 @@ import { requestWebNav } from '@/lib/webNav';
 // 웹 /benefit(templates/benefit.html)의 네이티브 구현.
 // 색·크기·간격은 static/styles.css 의 benefit-* 값을 그대로 옮겼다 (픽셀 패리티).
 
-type Overview = { user?: { points?: number } };
+type Overview = { user?: { points?: number; is_admin?: boolean } };
 
 function openWeb(path: string) {
   haptics.tap();
@@ -43,6 +43,7 @@ const ROWS: {
 
 export default function BenefitScreen() {
   const [points, setPoints] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // 웹뷰/룰렛에서 돌아올 때마다 잔액 갱신 (출석·뽑기 등으로 바뀔 수 있음)
   useFocusEffect(
@@ -50,7 +51,10 @@ export default function BenefitScreen() {
       let alive = true;
       // SWR: 마지막 잔액 즉시 표시 + 백그라운드 갱신
       apiFetchSWR<Overview>('/api/me/overview', (d) => {
-          if (alive && d.user) setPoints(Number(d.user.points || 0));
+          if (alive && d.user) {
+            setPoints(Number(d.user.points || 0));
+            setIsAdmin(!!d.user.is_admin);
+          }
         }).catch(() => {
           // 401 등 (캐시도 없음) — 웹뷰로 돌아가 웹의 게스트 흐름을 따르게 한다
           if (alive) router.back();
@@ -119,13 +123,13 @@ export default function BenefitScreen() {
         {/* 적립하기 리스트 */}
         <Text style={styles.sectionTitle}>적립하고 캐시 받기</Text>
         <View style={styles.list}>
-          {ROWS.map((row) => (
+          {ROWS.filter((row) => row.key !== 'tournament' || isAdmin).map((row) => (
             <Pressable
               key={row.key}
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               onPress={() => onRowPress(row)}
             >
-              <View style={[styles.rowIconWrap, { backgroundColor: row.pillBg }]}>
+              <View style={styles.rowIconWrap}>
                 <Image source={img(row.icon)} style={styles.rowIcon} contentFit="contain" />
               </View>
               <Text style={styles.rowName}>{row.name}</Text>
@@ -216,7 +220,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: '#f4f6fb',
+    backgroundColor: '#f2f4f6',
     alignItems: 'center',
     justifyContent: 'center',
   },
