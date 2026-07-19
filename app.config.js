@@ -2,6 +2,21 @@
 // EAS 환경변수(KAKAO_NATIVE_APP_KEY)로 주입한다. (app.json 대신 app.config.js 사용 이유)
 const KAKAO_NATIVE_APP_KEY = process.env.KAKAO_NATIVE_APP_KEY || '';
 
+// ⚠️ 키가 비면 strings.xml kakao_app_key="" + 콜백 스킴이 "kakao"(키 미포함)로
+// 박힌 바이너리가 만들어진다. 그 앱은 카카오톡 앱투앱 인증을 증명하지 못해
+// 콘솔에 키 해시를 아무리 맞게 등록해도 항상 계정(아이디/비번) 로그인으로
+// 폴백한다 — 실제로 이 원인으로 한참 헤맸다. 핵심 로그인 기능이므로 EAS
+// 빌드에서는 조용히 넘어가지 않고 즉시 실패시킨다.
+// 해결: 빌드에 쓰는 EAS 환경(preview/production 각각!)에 KAKAO_NATIVE_APP_KEY 등록.
+//       eas env:list --environment preview 로 확인. (docs/RELEASE.md)
+if (process.env.EAS_BUILD === 'true' && !KAKAO_NATIVE_APP_KEY) {
+  throw new Error(
+    '[카카오 로그인] KAKAO_NATIVE_APP_KEY 미설정 — 이대로 빌드하면 카카오톡 ' +
+      '간편로그인이 아이디/비번 입력으로 폴백하는 바이너리가 나온다. ' +
+      '이 빌드가 쓰는 EAS 환경(예: preview)에 KAKAO_NATIVE_APP_KEY를 등록할 것.',
+  );
+}
+
 // AdMob 앱 ID (ca-app-pub-XXXX~YYYY, AdMob 콘솔 → 앱 설정).
 // AdMob 앱 ID는 비밀값이 아니라 어차피 빌드된 앱에 그대로 박히는 공개값이므로
 // 여기에 직접 등록한다(env로 덮어쓰기 가능). 이렇게 하면 EAS 환경변수를 깜빡
