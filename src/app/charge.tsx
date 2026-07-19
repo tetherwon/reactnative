@@ -131,6 +131,7 @@ export default function ChargeScreen() {
   // 설정돼야 enabled. 미설정이면 '준비중' 유지(웹 setupAdCard와 동일 기준).
   const [rewarded, setRewarded] = useState<{ enabled: boolean; adUnit: string }>({ enabled: false, adUnit: '' });
   const [adBusy, setAdBusy] = useState(false);
+  const [adPillToast, setAdPillToast] = useState('');
 
   const loadSns = useCallback(() => {
     apiFetch<SnsStatus>('/api/charge/sns-status')
@@ -178,8 +179,9 @@ export default function ChargeScreen() {
           setSnsToast('광고를 끝까지 시청해야 적립돼요.');
           return;
         }
-        setSnsToast('적립 처리 중이에요. 잠시만요!');
+        setAdPillToast('2캐시가 적립되었습니다');
         markWebStateDirty(); // 웹뷰 잔액 캐시 무효화(SSV 적립 반영)
+        setTimeout(() => setAdPillToast(''), 2500);
       })
       .catch(() => setSnsToast('광고를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'))
       .finally(() => {
@@ -281,6 +283,11 @@ export default function ChargeScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>캐시 충전소</Text>
         <View style={styles.backBtn} />
+        {!!adPillToast && (
+          <View style={styles.adPillWrap} pointerEvents="none">
+            <Text style={styles.adPillText}>{adPillToast}</Text>
+          </View>
+        )}
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -406,6 +413,29 @@ const styles = StyleSheet.create({
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   backChevron: { fontSize: 30, color: '#1e293b', marginTop: -4 },
   headerTitle: { fontSize: 17, fontWeight: '800', color: '#0f172a' },
+  adPillWrap: {
+    position: 'absolute',
+    top: 56,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  adPillText: {
+    backgroundColor: '#3182f6',
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    borderRadius: 999,
+    overflow: 'hidden',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32, gap: 10 },
   card: {

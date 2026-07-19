@@ -54,8 +54,14 @@ const BRAND_LOGOS: Record<string, string> = {
   파파존스: '/static/giftshoplogo/파파존스.webp',
 };
 
-const srv = (path?: string | null): string | null =>
-  path ? encodeURI(BASE_URL + path) : null;
+// 절대 URL(관리자가 기프티쇼 CDN 원본 URL을 그대로 등록한 경우)은 그대로 쓰고,
+// 상대경로(/static/...)만 BASE_URL을 붙인다. 이 체크가 없으면 절대 URL 앞에
+// BASE_URL이 또 붙어(예: "https://shoppinglog.storehttp://...") 깨진 URL이 되고,
+// 이미지가 흰 배경으로만 뜬다(웹은 <img src>를 그대로 써서 이 문제가 없었음).
+const srv = (path?: string | null): string | null => {
+  if (!path) return null;
+  return /^https?:\/\//i.test(path) ? path : encodeURI(BASE_URL + path);
+};
 
 // 메가커피/메가MGC커피/메가 커피 등 변형을 하나로 (웹 normBrand)
 function normBrand(raw: string): string {
