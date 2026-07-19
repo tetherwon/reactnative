@@ -14,7 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Line, Path, Polygon, Rect } from 'react-native-svg';
 
 import WebBottomNav from '@/components/WebBottomNav';
-import { apiFetch, ApiError, apiFetchSWR } from '@/lib/api';
+import { showRewardedAd } from '@/lib/admob';
+import { apiFetch, ApiError, apiFetchSWR, BASE_URL } from '@/lib/api';
 import { openOfferwall } from '@/lib/adpopcorn';
 import * as haptics from '@/lib/haptics';
 import { markWebStateDirty } from '@/lib/webNav';
@@ -126,6 +127,10 @@ export default function ChargeScreen() {
   const [snsBusy, setSnsBusy] = useState<string | null>(null);
   const [snsToast, setSnsToast] = useState('');
   const [mission, setMission] = useState<'bug' | 'review' | null>(null);
+  // 리워드 광고 설정 — 서버 /api/app-config(ads.rewarded). 광고 단위 ID + SSV 둘 다
+  // 설정돼야 enabled. 미설정이면 '준비중' 유지(웹 setupAdCard와 동일 기준).
+  const [rewarded, setRewarded] = useState<{ enabled: boolean; adUnit: string }>({ enabled: false, adUnit: '' });
+  const [adBusy, setAdBusy] = useState(false);
 
   const loadSns = useCallback(() => {
     apiFetch<SnsStatus>('/api/charge/sns-status')
@@ -148,11 +153,40 @@ export default function ChargeScreen() {
         if (alive && e instanceof ApiError && e.status === 401) router.back();
       });
       loadSns();
+      fetch(`${BASE_URL}/api/app-config`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((cfg) => {
+          if (!alive || !cfg) return;
+          const rw = (cfg.ads && cfg.ads.rewarded) || {};
+          setRewarded({ enabled: !!rw.enabled, adUnit: String(rw.ad_unit_id || '') });
+        })
+        .catch(() => {});
       return () => {
         alive = false;
       };
     }, [loadSns]),
   );
+
+  // 광고 적립: 리워드 광고 시청 → 적립은 Google SSV 콜백이 서버에서 처리, 여기선 안내만.
+  const watchAd = useCallback(() => {
+    if (adBusy || !rewarded.adUnit || userId == null) return;
+    haptics.tap();
+    setAdBusy(true);
+    showRewardedAd(rewarded.adUnit, String(userId))
+      .then((ok) => {
+        if (!ok) {
+          setSnsToast('광고를 끝까지 시청해야 적립돼요.');
+          return;
+        }
+        setSnsToast('적립 처리 중이에요. 잠시만요!');
+        markWebStateDirty(); // 웹뷰 잔액 캐시 무효화(SSV 적립 반영)
+      })
+      .catch(() => setSnsToast('광고를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'))
+      .finally(() => {
+        setAdBusy(false);
+        setTimeout(() => setSnsToast(''), 2500);
+      });
+  }, [adBusy, rewarded.adUnit, userId]);
 
   // 오퍼월(별도 네이티브 액티비티)에서 복귀하면 잔액이 바뀌었을 수 있다 → 웹뷰 캐시 무효화
   useEffect(() => {
@@ -250,16 +284,21 @@ export default function ChargeScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* 광고 적립 — 서버 검증 완료 전까지 준비중 (웹과 동일) */}
-        {card(
-          <CardIcon kind="ad" />,
-          '#fef1f2',
-          '광고 적립',
-          '하루 20회 · 회당 2캐시',
-          rewardBtn('준비중', undefined, true, true),
-          undefined,
-          true,
-        )}
+        {/* 광고 적립 — 서버 app-config(ads.rewarded)가 활성일 때만 시청 가능, 아니면 준비중 */}
+        {(() => {
+          const adOn = rewarded.enabled && !!rewarded.adUnit;
+          return card(
+            <CardIcon kind="ad" />,
+            '#fef1f2',
+            '광고 적립',
+            '하루 20회 · 회당 2캐시',
+            adOn
+              ? rewardBtn(adBusy ? '광고 불러오는 중...' : '2캐시', watchAd, adBusy || userId == null)
+              : rewardBtn('준비중', undefined, true, true),
+            adOn ? watchAd : undefined,
+            !adOn,
+          );
+        })()}
 
         {/* 미션적립 (애드팝콘 오퍼월) — 이 빌드부터 활성 */}
         {card(
