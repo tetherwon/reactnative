@@ -211,9 +211,11 @@ export default function StoreScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* 히어로 배너 */}
+        {/* 히어로 배너 — expo-image는 URL 기준 디스크 캐시라 서버에서 이미지를
+            교체해도 URL이 같으면 예전 그림이 계속 보인다. 배너를 갈 때마다
+            ?v= 숫자를 올려 캐시를 깨뜨릴 것. */}
         <Image
-          source={srv('/static/banners/store-hero.webp')!}
+          source={srv('/static/banners/store-hero.webp?v=2')!}
           style={styles.banner}
           contentFit="cover"
         />
