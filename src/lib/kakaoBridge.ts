@@ -34,9 +34,10 @@ export const KAKAO_BRIDGE_INJECTED_JS = `
   };
   window.__slResolveKakaoLogin = function (id, accessToken) {
     var p = pending[id];
-    if (!p) return;
+    if (!p) return false;   // 대기 프로미스 유실(웹뷰 리로드) → 호출측이 폴백 처리
     delete pending[id];
     p.resolve({ accessToken: accessToken });
+    return true;
   };
   window.__slRejectKakaoLogin = function (id, message) {
     var p = pending[id];
@@ -49,7 +50,25 @@ true;
 `;
 
 export function resolveKakaoLoginScript(id: string, accessToken: string): string {
-  return `window.__slResolveKakaoLogin(${JSON.stringify(id)}, ${JSON.stringify(accessToken)}); true;`;
+  // 1) 웹뷰가 살아있고 대기 프로미스가 있으면 기존 웹 흐름(동의 marketing 포함 fetch)이 처리.
+  // 2) 삼성 등에서 카톡 왕복 중 웹뷰가 리로드돼 대기 프로미스가 유실되면(__slResolveKakaoLogin
+  //    이 false 반환) RN 주입 스크립트가 직접 /api/auth/kakao/token 을 호출해 세션을 완결한다.
+  //    (동의는 이미 게이트를 통과해 kakaoLogin 이 실행된 상태이므로 agreed=true. marketing 은
+  //     폴백 경로에선 기본 false — 유저가 이후 설정에서 켤 수 있음.)
+  const t = JSON.stringify(accessToken);
+  return `(function(){
+    var t=${t};
+    try {
+      if (window.__slResolveKakaoLogin && window.__slResolveKakaoLogin(${JSON.stringify(id)}, t)) return;
+    } catch (e) {}
+    fetch('/api/auth/kakao/token', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: t, agreed: true, marketing: false })
+    }).then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if (d && d.token) { try { localStorage.setItem('sl_token', d.token); } catch(e){} location.href='/'; } })
+      .catch(function(){});
+  })(); true;`;
 }
 
 export function rejectKakaoLoginScript(id: string, message: string): string {
