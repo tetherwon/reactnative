@@ -1,5 +1,5 @@
 import { useNetInfo } from '@react-native-community/netinfo';
-import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
+import { getAccessToken as kakaoGetAccessToken, login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import * as Notifications from 'expo-notifications';
 import { router, useLocalSearchParams, usePathname, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -47,6 +47,9 @@ import { consumeWebCommand, consumeWebStateDirty, setWebNavListener } from '@/li
 import {
   KAKAO_BRIDGE_INJECTED_JS,
   KAKAO_BRIDGE_MESSAGE_TYPE,
+  consumeKakaoLoginPending,
+  kakaoSessionCompleteScript,
+  markKakaoLoginPending,
   rejectKakaoLoginScript,
   resolveKakaoLoginScript,
 } from '@/lib/kakaoBridge';
@@ -485,6 +488,18 @@ export default function HomeScreen() {
       if (data.type !== KAKAO_BRIDGE_MESSAGE_TYPE || !data.id) return;
       const { id } = data;
 
+      // 중복 호출 가드: 로그인 진행 중 재클릭/웹뷰 리로드로 요청이 겹치면
+      // 네이티브 SDK가 동시 실행돼 크래시할 수 있다. 늦은 요청은 조용히 거절
+      // ('cancelled'는 웹이 에러 토스트 없이 무시하는 코드).
+      if (kakaoLoginInFlight.current) {
+        webViewRef.current?.injectJavaScript(rejectKakaoLoginScript(id, 'cancelled'));
+        return;
+      }
+      kakaoLoginInFlight.current = true;
+      // 프로세스 사망 복구 표식: 카톡 왕복 중 앱이 죽으면 이 표식+SDK에 영속
+      // 저장된 토큰으로 콜드 스타트에서 로그인을 마저 완결한다(onLoadEnd).
+      markKakaoLoginPending();
+
       kakaoLogin()
         .then((result) => {
           webViewRef.current?.injectJavaScript(
@@ -497,6 +512,11 @@ export default function HomeScreen() {
               ? 'cancelled'
               : error?.message || 'login_failed';
           webViewRef.current?.injectJavaScript(rejectKakaoLoginScript(id, message));
+        })
+        .finally(() => {
+          kakaoLoginInFlight.current = false;
+          // 콜백이 정상 전달됐으면 콜드 스타트 복구는 불필요 — 표식 소모
+          consumeKakaoLoginPending();
         });
     },
     [sendPushTokenToWeb, requestAuthHandoff],
@@ -506,6 +526,9 @@ export default function HomeScreen() {
   // 보관해둔 토큰/URL을 주입하면 에러 페이지에 떨어져 그대로 소실되므로,
   // 성공한 로드에서만 소비하고 실패 시엔 다음 로드까지 보관한다.
   const lastLoadFailed = useRef(false);
+  // 카카오 앱투앱 진행 중 가드 + 콜드 스타트 복구 1회 실행 플래그
+  const kakaoLoginInFlight = useRef(false);
+  const kakaoRecoveryChecked = useRef(false);
   const onLoadEnd = () => {
     setFirstLoadDone(true);
     const failed = lastLoadFailed.current;
@@ -515,6 +538,22 @@ export default function HomeScreen() {
     // 네이티브 전환 경로 목록을 웹(spa-nav.js)에 알리고, 인증 토큰 핸드오프를 요청한다
     webViewRef.current?.injectJavaScript(nativePathsScript());
     requestAuthHandoff();
+    // 카카오 앱투앱 도중 프로세스가 죽은 경우의 콜드 스타트 복구:
+    // 표식(10분 유효)이 남아 있고 SDK에 영속 저장된 토큰이 있으면 세션을 완결한다.
+    if (!kakaoRecoveryChecked.current) {
+      kakaoRecoveryChecked.current = true;
+      consumeKakaoLoginPending().then((pending) => {
+        if (!pending || kakaoLoginInFlight.current) return;
+        kakaoGetAccessToken()
+          .then((t) => {
+            const accessToken = (t as { accessToken?: string } | null)?.accessToken;
+            if (accessToken) {
+              webViewRef.current?.injectJavaScript(kakaoSessionCompleteScript(accessToken));
+            }
+          })
+          .catch(() => {}); // 저장 토큰 없음/만료 — 유저가 다시 로그인하면 됨
+      });
+    }
     // 토큰을 먼저 심는다 — 아래 pendingUrl 이동이 최종 목적지가 되더라도
     // localStorage 저장은 유지되므로 둘 다 살릴 수 있다.
     if (pendingAuthToken.current) {
