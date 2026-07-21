@@ -3,7 +3,6 @@ import { Image } from 'expo-image';
 import { router, useFocusEffect, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -56,6 +55,7 @@ export default function ProfileScreen() {
   const [notif, setNotif] = useState<NotifSettings>({ checkin_reminder: false, daily_9am: false, game_time: false });
   const [notifSaving, setNotifSaving] = useState(false);
   const [notifMsg, setNotifMsg] = useState('');
+  const [logoutOpen, setLogoutOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -140,20 +140,15 @@ export default function ProfileScreen() {
       .finally(() => setNotifSaving(false));
   };
 
-  const logout = () => {
-    Alert.alert('로그아웃', '로그아웃할까요?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '로그아웃',
-        style: 'destructive',
-        onPress: async () => {
-          haptics.tap();
-          await clearToken();
-          requestWebCommand('logout'); // 웹뷰 쿠키 세션·캐시도 정리
-          router.dismissTo('/');
-        },
-      },
-    ]);
+  // OS 기본 Alert 대신 앱 디자인(알림 설정 시트와 동일 톤)의 확인 시트를 쓴다
+  const logout = () => setLogoutOpen(true);
+
+  const doLogout = async () => {
+    setLogoutOpen(false);
+    haptics.tap();
+    await clearToken();
+    requestWebCommand('logout'); // 웹뷰 쿠키 세션·캐시도 정리
+    router.dismissTo('/');
   };
 
   const menuRow = (label: string, onPress: () => void, danger = false) => (
@@ -324,6 +319,26 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* 로그아웃 확인 — OS Alert 대신 앱 톤의 바텀 시트 */}
+      <Modal visible={logoutOpen} transparent animationType="slide" onRequestClose={() => setLogoutOpen(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setLogoutOpen(false)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>로그아웃</Text>
+            <Text style={styles.logoutDesc}>
+              정말 로그아웃할까요?{'\n'}적립된 캐시와 내역은 그대로 보관돼요.
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable style={[styles.modalBtn, styles.modalBtnGhost]} onPress={() => setLogoutOpen(false)}>
+                <Text style={styles.modalBtnGhostText}>취소</Text>
+              </Pressable>
+              <Pressable style={[styles.modalBtn, styles.modalBtnDanger]} onPress={doLogout}>
+                <Text style={styles.modalBtnPrimaryText}>로그아웃</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -409,4 +424,6 @@ const styles = StyleSheet.create({
   modalBtnGhostText: { color: '#334155', fontSize: 15, fontWeight: '800' },
   modalBtnPrimary: { backgroundColor: '#3182f6' },
   modalBtnPrimaryText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
+  modalBtnDanger: { backgroundColor: '#e42939' },
+  logoutDesc: { fontSize: 14, color: '#4e5968', lineHeight: 21, marginTop: 2 },
 });
