@@ -1,7 +1,7 @@
 import { useNetInfo } from '@react-native-community/netinfo';
 import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import * as Notifications from 'expo-notifications';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -44,6 +44,7 @@ import {
   getFcmDeviceTokenAsync,
   registerForPushNotificationsAsync,
 } from '@/lib/notifications';
+import { isNativeScreenSync, loadAppConfig, setNativeToken } from '@/lib/nativeState';
 
 const HOME_URL = 'https://shoppinglog.store';
 
@@ -70,6 +71,12 @@ export default function HomeScreen() {
   const lastBackPress = useRef(0);
   const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const router = useRouter();
+
+  // 하이브리드 네이티브 화면 스위치를 불러온다(관리자가 토글, /api/app-config).
+  useEffect(() => {
+    loadAppConfig();
+  }, []);
 
   const { isConnected } = useNetInfo();
   const isOffline = isConnected === false;
@@ -144,6 +151,7 @@ export default function HomeScreen() {
   const lastAppliedToken = useRef<string | null>(null);
   const applyAuthToken = useCallback((token: string) => {
     if (lastAppliedToken.current === token) return;
+    setNativeToken(token); // 네이티브 화면 API 인증용으로도 미러링
     if (!isLoaded.current) {
       pendingAuthToken.current = token;
       return;
@@ -237,6 +245,16 @@ export default function HomeScreen() {
       // 웹뷰 안에서 진행되는 소셜 로그인(애플 등)도 마지막에 딥링크로 끝나므로
       // 표식을 남겨야 라우터 경로가 토큰을 수용한다.
       if (isOAuthWebStartUrl(request.url)) markOAuthPending();
+      // 관리자에서 'invite'를 네이티브로 켜두면, 정확히 /invite 이동을 가로채
+      // 네이티브 친구초대 화면을 띄운다. (/invite/go 등 하위 경로·리다이렉트는 제외.)
+      if (
+        request.isTopFrame !== false &&
+        isNativeScreenSync('invite') &&
+        /^https?:\/\/([a-z0-9-]+\.)*shoppinglog\.store\/invite\/?(\?|#|$)/i.test(request.url)
+      ) {
+        router.push('/invite');
+        return false;
+      }
       if (!isWebViewNavigable(request.url)) {
         openExternalUrl(request.url);
         return false;
@@ -253,7 +271,7 @@ export default function HomeScreen() {
       }
       return true;
     },
-    [openGoogleOAuth],
+    [openGoogleOAuth, router],
   );
 
   // 웹(native-push.js)에 FCM 토큰을 넘겨 서버에 등록시킨다.
@@ -283,7 +301,7 @@ export default function HomeScreen() {
   // - adpopcorn:openOfferwall: 오퍼월 열기 → 닫히면 SLNative.onAdpopcornClosed 호출
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
-      let data: { type?: string; id?: string; adUnit?: unknown; userId?: unknown; message?: unknown };
+      let data: { type?: string; id?: string; adUnit?: unknown; userId?: unknown; message?: unknown; token?: unknown };
       try {
         data = JSON.parse(event.nativeEvent.data);
       } catch {
@@ -320,6 +338,13 @@ export default function HomeScreen() {
         return;
       }
 
+      // 웹뷰 localStorage의 JWT를 네이티브에 미러링 → 네이티브 화면 API 인증용.
+      if (data.type === 'auth:token') {
+        const t = typeof data.token === 'string' ? data.token : '';
+        setNativeToken(t || null);
+        return;
+      }
+
       if (data.type !== KAKAO_BRIDGE_MESSAGE_TYPE || !data.id) return;
       const { id } = data;
 
@@ -350,6 +375,10 @@ export default function HomeScreen() {
     lastLoadFailed.current = false;
     isLoaded.current = true;
     if (failed) return;
+    // 이미 로그인된(웹뷰 localStorage에 sl_token) 유저의 토큰을 네이티브로 백필.
+    webViewRef.current?.injectJavaScript(
+      'try{var t=localStorage.getItem("sl_token");window.ReactNativeWebView.postMessage(JSON.stringify({type:"auth:token",token:t||""}));}catch(e){}true;',
+    );
     // 토큰을 먼저 심는다 — 아래 pendingUrl 이동이 최종 목적지가 되더라도
     // localStorage 저장은 유지되므로 둘 다 살릴 수 있다.
     if (pendingAuthToken.current) {
