@@ -8,6 +8,7 @@ import {
   BackHandler,
   Image,
   Platform,
+  Share,
   StyleSheet,
   Text,
   ToastAndroid,
@@ -55,6 +56,10 @@ const APP_AUTH_REDIRECT_PREFIX = 'webview://auth';
 // 웹뷰 로딩 화면을 네이티브 스플래시(파란 배경 + 곰돌이)와 이어지게 하기 위해
 // 같은 아이콘을 쓴다. icon.png 배경색(#1371F9)이 로딩 배경과 같아 이음새 없음.
 const LOADING_BEAR = require('../../assets/images/icon.png');
+
+// 웹에 "네이티브 공유 시트 사용 가능" 신호를 준다. 구버전 앱엔 이 플래그가
+// 없으므로 웹이 navigator.share/클립보드로 안전하게 폴백한다(무음 no-op 방지).
+const NATIVE_CAPS_JS = ';window.__SL_NATIVE_SHARE__=true;true;';
 
 
 export default function HomeScreen() {
@@ -278,7 +283,7 @@ export default function HomeScreen() {
   // - adpopcorn:openOfferwall: 오퍼월 열기 → 닫히면 SLNative.onAdpopcornClosed 호출
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
-      let data: { type?: string; id?: string; adUnit?: unknown; userId?: unknown };
+      let data: { type?: string; id?: string; adUnit?: unknown; userId?: unknown; message?: unknown };
       try {
         data = JSON.parse(event.nativeEvent.data);
       } catch {
@@ -304,6 +309,14 @@ export default function HomeScreen() {
       if (data.type === 'adpopcorn:openOfferwall') {
         const userId = typeof data.userId === 'string' ? data.userId : '';
         openAdpopcornOfferwall(userId);
+        return;
+      }
+
+      // 웹의 공유 버튼 → OS 네이티브 공유 시트(카톡/인스타/메시지/복사).
+      // 안드 웹뷰는 navigator.share 미지원이라 이 브릿지로 처리한다.
+      if (data.type === 'share') {
+        const message = typeof data.message === 'string' ? data.message : '';
+        if (message) Share.share({ message }).catch(() => {});
         return;
       }
 
@@ -365,7 +378,7 @@ export default function HomeScreen() {
           onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
           onLoadEnd={onLoadEnd}
           onMessage={onMessage}
-          injectedJavaScriptBeforeContentLoaded={KAKAO_BRIDGE_INJECTED_JS}
+          injectedJavaScriptBeforeContentLoaded={KAKAO_BRIDGE_INJECTED_JS + NATIVE_CAPS_JS}
           onError={() => {
             lastLoadFailed.current = true;
             setFirstLoadDone(true);
