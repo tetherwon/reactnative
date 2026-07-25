@@ -20,8 +20,15 @@ function setMetaData(app, name, value) {
 function withAdpopcorn(config, { appKey, hashKey }) {
   return withAndroidManifest(config, (config) => {
     const app = config.modResults.manifest.application[0];
-    setMetaData(app, 'adpopcorn_app_key', appKey || '');
-    setMetaData(app, 'adpopcorn_hash_key', hashKey || '');
+    // AdPopcornOfferwall(IGAWorks) SDK가 읽는 meta-data 이름은 igaworks_* 다.
+    // (공식 샘플 igaworks-release/IgawAdpopcornOfferwall{Server,Client}Sample 기준)
+    // 이전에 쓰던 adpopcorn_app_key/adpopcorn_hash_key는 SDK가 못 읽어 앱키가
+    // 빈 값이 되고, 오퍼월이 '빈 목록'으로 열리던 버그의 원인이었다.
+    setMetaData(app, 'igaworks_app_key', appKey || '');
+    setMetaData(app, 'igaworks_hash_key', hashKey || '');
+    // 리워드는 서버-서버 포스트백(/api/adpopcorn/postback, HMAC-MD5)으로 지급하므로
+    // 서버 타입을 명시한다. (애드팝콘 대시보드의 리워드 지급 방식도 '서버'여야 함)
+    setMetaData(app, 'igaworks_reward_server_type', 'server');
     return config;
   });
 }
