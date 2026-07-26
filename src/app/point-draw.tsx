@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, ToastAndroid, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import WebBottomNav from '@/components/WebBottomNav';
@@ -304,6 +304,19 @@ export default function PointDrawScreen() {
                       isWin && styles.itemCardWin,
                     ]}
                   >
+                    {it.is_blank && (
+                      <Pressable
+                        style={styles.blankInfo}
+                        hitSlop={8}
+                        onPress={() =>
+                          ToastAndroid && ToastAndroid.show
+                            ? ToastAndroid.show('확률이 매우 낮으니 안심하세요', ToastAndroid.SHORT)
+                            : undefined
+                        }
+                      >
+                        <Text style={styles.blankInfoText}>i</Text>
+                      </Pressable>
+                    )}
                     <View style={styles.itemThumb}>
                       {it.is_blank ? (
                         <Text style={styles.itemBlank}>꽝</Text>
@@ -498,6 +511,19 @@ const styles = StyleSheet.create({
   itemThumb: { width: '100%', height: 74, alignItems: 'center', justifyContent: 'center' },
   itemImg: { width: 64, height: 64, borderRadius: 12 },
   itemBlank: { fontSize: 26, fontWeight: '900', color: '#94a3b8' },
+  blankInfo: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    zIndex: 3,
+    width: 19,
+    height: 19,
+    borderRadius: 10,
+    backgroundColor: '#f59e0b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  blankInfoText: { color: '#fff', fontSize: 12, fontWeight: '800', fontStyle: 'italic', lineHeight: 15 },
   itemNoImg: { fontSize: 30 },
   itemBrand: { fontSize: 11, fontWeight: '700', color: '#8b95a1' },
   itemName: { fontSize: 12.5, fontWeight: '700', color: '#191f28', textAlign: 'center', lineHeight: 17 },

@@ -13,13 +13,14 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path, Rect, Text as SvgText } from 'react-native-svg';
 
 import WebBottomNav from '@/components/WebBottomNav';
 import { apiFetch, ApiError, apiFetchSWR, BASE_URL } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 
-// 웹 /invite(static/invite-inline-1/2.js)의 네이티브 구현.
-// 공유는 네이티브 공유 시트(Share API) — 웹 navigator.share 보다 안정적.
+// 웹 /invite 의 네이티브 구현 — 새 웹 디자인(히어로/혜택 카드/스텝/파란 밴드) 반영.
+// 공유는 네이티브 공유 시트(Share API).
 
 type Referral = {
   referral_code?: string;
@@ -30,6 +31,42 @@ type Referral = {
 type Friend = { name?: string; masked?: string; email?: string; created_at?: number; status?: string };
 
 const GOAL = 5;
+const GIFT_URI = `${BASE_URL}/static/logos/invite-gift.png`;
+
+// 웹 혜택 안내 SVG 아이콘 3종 (money bag / shopping bag / gift) 그대로 재현
+function IconMoneyBag() {
+  return (
+    <Svg width={28} height={28} viewBox="0 0 32 32">
+      <Path d="M10.6 5.1c-.4-.7.1-1.6.9-1.6h9c.8 0 1.3.9.9 1.6L19 9.4h-6z" fill="#FCD34D" />
+      <Path
+        d="M13 9c-3.3 2.7-5.6 6.5-5.6 10.6A6.6 6.6 0 0 0 14 26.2h4a6.6 6.6 0 0 0 6.6-6.6C24.6 15.5 22.3 11.7 19 9z"
+        fill="#FBBF24"
+      />
+      <SvgText x={16} y={22} fontSize={11} fontWeight="800" fill="#fff" textAnchor="middle">
+        $
+      </SvgText>
+    </Svg>
+  );
+}
+function IconShoppingBag() {
+  return (
+    <Svg width={28} height={28} viewBox="0 0 32 32">
+      <Path d="M11.5 10.7V9a4.5 4.5 0 0 1 9 0v1.7" stroke="#2E6BF0" strokeWidth={2.3} strokeLinecap="round" fill="none" />
+      <Path d="M7.4 10.5h17.2l-1.3 14.3a2.1 2.1 0 0 1-2.1 1.9H10.8a2.1 2.1 0 0 1-2.1-1.9z" fill="#3B82F6" />
+    </Svg>
+  );
+}
+function IconGift() {
+  return (
+    <Svg width={28} height={28} viewBox="0 0 32 32">
+      <Rect x={6.5} y={13} width={19} height={12.6} rx={1.6} fill="#EF4444" />
+      <Rect x={5.4} y={9.5} width={21.2} height={4.9} rx={1.4} fill="#F87171" />
+      <Rect x={14.3} y={9.5} width={3.4} height={16.1} fill="#FECDD3" />
+      <Path d="M16 9.5C15 7 12.5 6.1 11 7.4c-1.7 1.4-.3 3.1 5 2.1z" fill="#FCA5A5" />
+      <Path d="M16 9.5C17 7 19.5 6.1 21 7.4c1.7 1.4.3 3.1-5 2.1z" fill="#FCA5A5" />
+    </Svg>
+  );
+}
 
 export default function InviteScreen() {
   const [data, setData] = useState<Referral | null>(null);
@@ -56,9 +93,8 @@ export default function InviteScreen() {
 
   const code = data?.referral_code || '';
   const count = Number(data?.referred_count || 0);
-  const link = `${BASE_URL}/invite/go?ref=${code}`;
-  // 웹 shareBody() 문구 그대로
-  const shareBody = `쇼핑로그 신규가입하고 1000캐시 받아요.\n${link}\n추천코드 : ${code}`;
+  const link = `${BASE_URL}/invite/go?ref=${code}&utm_source=invite`;
+  const shareBody = `쇼핑로그 신규가입하고 1,000캐시 + 룰렛 티켓 2장 받아요.\n${link}${code ? `\n추천코드 : ${code}` : ''}`;
 
   const doShare = () => {
     if (!code) return;
@@ -110,9 +146,14 @@ export default function InviteScreen() {
 
   // 초대 챌린지 진행률 (웹 로직 그대로)
   const within = count % GOAL;
-  const milestoneCount = within === 0 && count > 0 ? GOAL : within;
-  const pct = Math.round(((count === 0 ? 0 : within === 0 ? GOAL : within) / GOAL) * 100);
+  const doneN = within === 0 && count > 0 ? GOAL : within;
   const remain = within === 0 ? GOAL : GOAL - within;
+
+  const benefits = [
+    { icon: <IconMoneyBag />, text: '친구가 첫 구매 시 즉시 적립', value: '300캐시' },
+    { icon: <IconShoppingBag />, text: '친구 쇼핑의 자동 적립', value: '10%', sub: '1년간 유지' },
+    { icon: <IconGift />, text: '5명 초대마다 보너스', value: '500캐시' },
+  ];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -129,59 +170,110 @@ export default function InviteScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* 내 초대 코드 + 공유 */}
-        <View style={styles.linkCard}>
-          <Text style={styles.linkLabel}>내 초대 코드</Text>
-          <View style={styles.linkRow}>
-            <Text style={styles.linkCode}>{code || '코드 로딩 중...'}</Text>
+        {/* 히어로 */}
+        <View style={styles.hero}>
+          <Image source={{ uri: GIFT_URI }} style={styles.heroImg} contentFit="contain" />
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              친구가 쇼핑하면 나도 <Text style={styles.badgeHi}>10% 적립</Text>
+            </Text>
+          </View>
+          <View style={styles.badgeTail} />
+          <Text style={styles.heroTitle}>
+            친구 초대하고{'\n'}
+            <Text style={styles.accent}>추가 캐시</Text> 받아요
+          </Text>
+          <Text style={styles.heroSub}>친구가 쇼핑하면 나도 10% 적립</Text>
+        </View>
+
+        {/* 내 초대 코드 + 통계 (통합 카드) */}
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>내 초대 코드</Text>
+          <View style={styles.codeRow}>
+            <Text style={styles.codeText} numberOfLines={1}>
+              {code || '코드 로딩 중...'}
+            </Text>
             <Pressable style={styles.copyBtn} onPress={copyCode} hitSlop={6}>
               <Text style={styles.copyBtnText}>{copied ? '완료' : '복사'}</Text>
             </Pressable>
           </View>
-          <Pressable style={styles.shareBtn} onPress={doShare}>
-            <Text style={styles.shareBtnText}>친구에게 공유하기</Text>
-          </Pressable>
+          <View style={styles.dashed} />
+          <View style={styles.statsRow}>
+            <Pressable style={styles.stat} onPress={openFriends}>
+              <Text style={styles.statValue}>{count}</Text>
+              <Text style={[styles.statLabel, styles.statLabelActive]}>초대한 친구</Text>
+            </Pressable>
+            <View style={styles.stat}>
+              <Text style={styles.statValue}>{count}</Text>
+              <Text style={styles.statLabel}>받은 티켓</Text>
+            </View>
+            <View style={styles.stat}>
+              <Text style={styles.statValue}>{Number(data?.earnings || 0).toLocaleString('ko-KR')}</Text>
+              <Text style={styles.statLabel}>받은 캐시</Text>
+            </View>
+          </View>
         </View>
 
-        {/* 실적 3종 */}
-        <View style={styles.statsRow}>
-          <Pressable style={styles.statCard} onPress={openFriends}>
-            <Text style={styles.statValue}>{count}</Text>
-            <Text style={styles.statLabel}>초대한 친구</Text>
-          </Pressable>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{count}</Text>
-            <Text style={styles.statLabel}>받은 티켓</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{Number(data?.earnings || 0).toLocaleString('ko-KR')}</Text>
-            <Text style={styles.statLabel}>받은 캐시</Text>
-          </View>
-        </View>
         {count === 0 && (
-          <Text style={styles.nudge}>아직 초대한 친구가 없어요. 위 버튼으로 첫 친구를 초대해 보세요.</Text>
+          <Text style={styles.nudge}>
+            아직 초대한 친구가 없어요.{'\n'}
+            <Text style={styles.accent}>아래 버튼</Text>으로 첫 친구를 초대해 보세요.
+          </Text>
         )}
 
-        {/* 초대 챌린지 */}
+        {/* 혜택 안내 — 연파랑 밴드 + 흰 카드 */}
+        <View style={styles.benefit}>
+          <Text style={styles.benefitTitle}>혜택 안내</Text>
+          {benefits.map((b, i) => (
+            <View key={i} style={styles.bRow}>
+              <View style={styles.bIcon}>{b.icon}</View>
+              <Text style={styles.bText}>{b.text}</Text>
+              <View style={styles.bValueWrap}>
+                <Text style={styles.bValue}>{b.value}</Text>
+                {b.sub ? <Text style={styles.bSub}>{b.sub}</Text> : null}
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* 초대 챌린지 — 1~5 스텝 */}
         <View style={styles.milestone}>
-          <View style={styles.milestoneHead}>
-            <Text style={styles.milestoneTitle}>초대 챌린지</Text>
-            <Text style={styles.milestoneCount}>
-              <Text style={styles.milestoneCountB}>{milestoneCount}</Text>/{GOAL}
+          <View style={styles.mHead}>
+            <Text style={styles.mTitle}>초대 챌린지</Text>
+            <Text style={styles.mCount}>
+              <Text style={styles.mCountB}>{doneN}</Text>/{GOAL}
             </Text>
           </View>
-          <Text style={styles.milestoneSub}>
-            {count === 0 ? '친구 5명 초대에 도전해 보세요.' : `${remain}명만 더 초대하면 보너스!`}
+          <Text style={styles.mSub}>
+            {count === 0 ? '친구 5명 초대에 도전해 보세요.' : `${remain}명 더 초대하면 다음 단계 달성`}
           </Text>
-          <View style={styles.milestoneTrack}>
-            <View style={[styles.milestoneFill, { width: `${pct}%` }]} />
+          <View style={styles.steps}>
+            {[1, 2, 3, 4, 5].map((s, i) => {
+              const done = i < doneN;
+              const goal = s === 5;
+              return (
+                <View key={s} style={styles.stepCell}>
+                  {i > 0 && <View style={[styles.stepLine, i <= doneN && styles.stepLineOn]} />}
+                  <View style={[styles.stepDot, done && styles.stepDotDone, goal && !done && styles.stepDotGoal]}>
+                    {goal && (
+                      <View style={styles.stepBadge}>
+                        <Text style={styles.stepBadgeText}>500캐시</Text>
+                      </View>
+                    )}
+                    <Text style={[styles.stepNum, done && styles.stepNumOn, goal && !done && styles.stepNumGoal]}>
+                      {s}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
-          <Text style={styles.milestoneBonus}>
-            5명 달성 시 <Text style={styles.milestoneBonusB}>500캐시</Text> 보너스 지급
+          <Text style={styles.mGoal}>
+            5명 달성 시 <Text style={styles.mGoalB}>500캐시</Text> 보너스 지급
           </Text>
         </View>
 
-        {/* 추천인 코드 입력 (미등록자만) */}
+        {/* 추천인 코드 입력 (미등록자만) — 연파랑 밴드 */}
         {data !== null && !data.referred && (
           <View style={styles.refCard}>
             <Text style={styles.refTitle}>추천인 코드가 있나요?</Text>
@@ -213,49 +305,7 @@ export default function InviteScreen() {
           </View>
         )}
 
-        {/* 혜택 안내 (웹 invite.html 구조 그대로 — 아이콘 이미지 + 배지, 이모지 X) */}
-        <Text style={styles.sectionTitle}>혜택 안내</Text>
-        <View style={styles.benefitList}>
-          <View style={[styles.benefitRow, styles.benefitRowBorder]}>
-            <View style={styles.benefitIcon}>
-              <Image
-                source={{ uri: encodeURI(BASE_URL + '/static/logos/flow/reward.webp') }}
-                style={styles.benefitIconImg}
-                contentFit="contain"
-              />
-            </View>
-            <Text style={styles.benefitText}>
-              친구가 첫 구매 시 <Text style={styles.benefitStrong}>300캐시</Text> 즉시 적립
-            </Text>
-          </View>
-          <View style={[styles.benefitRow, styles.benefitRowBorder]}>
-            <View style={styles.benefitIcon}>
-              <Image
-                source={{ uri: encodeURI(BASE_URL + '/static/shopping.webp') }}
-                style={styles.benefitIconImg}
-                contentFit="contain"
-              />
-            </View>
-            <Text style={styles.benefitText}>
-              친구 쇼핑의 <Text style={styles.benefitStrong}>10%</Text> 자동 적립
-            </Text>
-            <Text style={styles.benefitBadge}>1년간 유지</Text>
-          </View>
-          <View style={styles.benefitRow}>
-            <View style={styles.benefitIcon}>
-              <Image
-                source={{ uri: encodeURI(BASE_URL + '/static/logos/트로피.webp') }}
-                style={styles.benefitIconImg}
-                contentFit="contain"
-              />
-            </View>
-            <Text style={styles.benefitText}>
-              5명 초대마다 <Text style={styles.benefitStrong}>500캐시</Text> 보너스
-            </Text>
-          </View>
-        </View>
-
-        {/* 적립·환불 규정 (웹 문구 그대로) */}
+        {/* 적립·환불 규정 */}
         <Text style={styles.sectionTitle}>적립·환불 규정</Text>
         <View style={styles.policyList}>
           {[
@@ -272,6 +322,14 @@ export default function InviteScreen() {
           ))}
         </View>
       </ScrollView>
+
+      {/* 하단 고정 공유 버튼 (네비 위) */}
+      <View style={styles.shareBar}>
+        <Pressable style={styles.shareBtn} onPress={doShare}>
+          <Text style={styles.shareBtnText}>친구에게 공유하기</Text>
+        </Pressable>
+      </View>
+
       <WebBottomNav />
 
       {/* 초대한 친구 모달 */}
@@ -322,124 +380,136 @@ const styles = StyleSheet.create({
   backChevron: { fontSize: 30, color: '#1e293b', marginTop: -4 },
   headerTitle: { fontSize: 17, fontWeight: '800', color: '#0f172a' },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
-  linkCard: {
-    backgroundColor: '#3182f6',
-    borderRadius: 18,
-    padding: 20,
+  scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 90 },
+
+  hero: { alignItems: 'center', paddingBottom: 6 },
+  heroImg: { width: 128, height: 112, marginBottom: 16 },
+  badge: { backgroundColor: '#263041', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
+  badgeText: { color: '#fff', fontSize: 13.5, fontWeight: '700' },
+  badgeHi: { color: '#ffd43b', fontWeight: '800' },
+  badgeTail: {
+    width: 0,
+    height: 0,
     marginBottom: 12,
+    borderLeftWidth: 7,
+    borderRightWidth: 7,
+    borderTopWidth: 7,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#263041',
   },
-  linkLabel: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.85)', marginBottom: 8 },
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-  },
-  linkCode: { flex: 1, fontSize: 18, fontWeight: '800', color: '#ffffff', letterSpacing: 1 },
-  copyBtn: { backgroundColor: '#ffffff', borderRadius: 9, paddingHorizontal: 12, paddingVertical: 7 },
-  copyBtnText: { fontSize: 12.5, fontWeight: '800', color: '#2272eb' },
-  shareBtn: {
+  heroTitle: { fontSize: 27, fontWeight: '800', color: '#191f28', textAlign: 'center', lineHeight: 35 },
+  accent: { color: '#3182f6' },
+  heroSub: { marginTop: 10, fontSize: 15, color: '#8b95a1', fontWeight: '500' },
+
+  card: {
     marginTop: 12,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: 'center',
-  },
-  shareBtnText: { fontSize: 15, fontWeight: '800', color: '#2272eb' },
-  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  statValue: { fontSize: 20, fontWeight: '900', color: '#191f28' },
-  statLabel: { fontSize: 12, color: '#8b95a1', marginTop: 3 },
-  nudge: { fontSize: 12.5, color: '#8b95a1', textAlign: 'center', marginBottom: 10 },
-  milestone: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#eef0f4',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  },
-  milestoneHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  milestoneTitle: { fontSize: 14.5, fontWeight: '800', color: '#191f28' },
-  milestoneCount: { fontSize: 13, color: '#8b95a1' },
-  milestoneCountB: { fontWeight: '900', color: '#2272eb' },
-  milestoneSub: { fontSize: 12.5, color: '#8b95a1', marginBottom: 10 },
-  milestoneTrack: { height: 8, borderRadius: 4, backgroundColor: '#eef0f3', overflow: 'hidden' },
-  milestoneFill: { height: 8, borderRadius: 4, backgroundColor: '#3182f6' },
-  milestoneBonus: { fontSize: 12.5, color: '#4e5968', marginTop: 10 },
-  milestoneBonusB: { fontWeight: '900', color: '#2272eb' },
-  refCard: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  },
-  refTitle: { fontSize: 14.5, fontWeight: '800', color: '#191f28' },
-  refDesc: { fontSize: 12.5, color: '#8b95a1', marginTop: 4, lineHeight: 18 },
-  refRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  refInput: {
-    flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#e5e8eb',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#191f28',
+    borderRadius: 18,
+    padding: 20,
   },
-  refBtn: {
-    backgroundColor: '#3182f6',
-    borderRadius: 10,
-    paddingHorizontal: 18,
-    justifyContent: 'center',
-  },
-  refBtnText: { fontSize: 14, fontWeight: '800', color: '#ffffff' },
-  refMsg: { fontSize: 12.5, fontWeight: '700', color: '#059669', marginTop: 8 },
-  refMsgError: { color: '#dc2626' },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#191f28', marginTop: 14, marginBottom: 8 },
-  benefitList: { marginBottom: 4 },
-  benefitRow: {
+  cardLabel: { fontSize: 11, fontWeight: '700', color: '#8b95a1', letterSpacing: 0.4, marginBottom: 10 },
+  codeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  codeText: { flex: 1, fontSize: 26, fontWeight: '800', color: '#3182f6' },
+  copyBtn: { borderWidth: 1, borderColor: '#d1d6db', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 9 },
+  copyBtnText: { fontSize: 13.5, fontWeight: '700', color: '#4e5968' },
+  dashed: { height: 1, borderTopWidth: 1, borderStyle: 'dashed', borderColor: '#dfe3e8', marginVertical: 18 },
+  statsRow: { flexDirection: 'row' },
+  stat: { flex: 1, alignItems: 'center', gap: 6 },
+  statValue: { fontSize: 24, fontWeight: '800', color: '#191f28' },
+  statLabel: { fontSize: 12.5, color: '#8b95a1' },
+  statLabelActive: { color: '#3182f6', fontWeight: '700' },
+
+  nudge: { marginTop: 14, textAlign: 'center', fontSize: 13.5, lineHeight: 22, fontWeight: '600', color: '#4e5968' },
+
+  benefit: { marginTop: 18, marginHorizontal: -16, paddingHorizontal: 16, paddingVertical: 22, backgroundColor: '#eef2fc' },
+  benefitTitle: { fontSize: 18, fontWeight: '800', color: '#191f28', marginBottom: 14 },
+  bRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 4,
+    gap: 12,
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
   },
-  benefitRowBorder: { borderBottomWidth: 1, borderBottomColor: '#f2f4f6' },
-  benefitIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#ffffff',
+  bIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#f2f5fb', alignItems: 'center', justifyContent: 'center' },
+  bText: { flex: 1, fontSize: 14, fontWeight: '600', color: '#191f28' },
+  bValueWrap: { alignItems: 'flex-end' },
+  bValue: { fontSize: 20, fontWeight: '800', color: '#3182f6' },
+  bSub: { fontSize: 12, color: '#8b95a1', marginTop: 3 },
+
+  milestone: { marginTop: 28, marginBottom: 4 },
+  mHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  mTitle: { fontSize: 16, fontWeight: '800', color: '#191f28' },
+  mCount: { fontSize: 15, color: '#8b95a1' },
+  mCountB: { fontWeight: '800', color: '#3182f6' },
+  mSub: { fontSize: 13.5, color: '#8b95a1', fontWeight: '500' },
+  steps: { flexDirection: 'row', alignItems: 'center', marginTop: 44, marginBottom: 16, paddingHorizontal: 24 },
+  stepCell: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  stepLine: { flex: 1, height: 3, backgroundColor: '#eceef1', marginHorizontal: 2, borderRadius: 2 },
+  stepLineOn: { backgroundColor: '#3182f6' },
+  stepDot: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2,
+    borderColor: '#e5e8eb',
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  benefitIconImg: { width: 28, height: 28 },
-  benefitText: { flex: 1, fontSize: 15, color: '#4e5968', lineHeight: 21 },
-  benefitStrong: { color: '#191f28', fontWeight: '700' },
-  benefitBadge: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#ffffff',
-    backgroundColor: '#8b95a1',
-    borderRadius: 10,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    overflow: 'hidden',
+  stepDotDone: { backgroundColor: '#3182f6', borderColor: '#3182f6' },
+  stepDotGoal: { borderColor: '#3182f6' },
+  stepNum: { fontSize: 15, fontWeight: '700', color: '#b0b8c1' },
+  stepNumOn: { color: '#fff' },
+  stepNumGoal: { color: '#3182f6' },
+  stepBadge: { position: 'absolute', bottom: 44, backgroundColor: '#2b3441', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  stepBadgeText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  mGoal: { textAlign: 'center', fontSize: 13.5, color: '#8b95a1', fontWeight: '500' },
+  mGoalB: { color: '#4e5968', fontWeight: '800' },
+
+  refCard: { marginTop: 20, marginHorizontal: -16, paddingHorizontal: 16, paddingTop: 24, paddingBottom: 26, backgroundColor: '#eff4ff' },
+  refTitle: { fontSize: 18, fontWeight: '800', color: '#191f28', marginBottom: 8 },
+  refDesc: { fontSize: 13.5, color: '#8b95a1', lineHeight: 21, marginBottom: 16 },
+  refRow: { flexDirection: 'row', gap: 8 },
+  refInput: {
+    flex: 1,
+    height: 50,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d6e0f0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    color: '#191f28',
   },
+  refBtn: { minWidth: 76, height: 50, borderRadius: 12, backgroundColor: '#3182f6', alignItems: 'center', justifyContent: 'center' },
+  refBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
+  refMsg: { fontSize: 12.5, fontWeight: '700', color: '#059669', marginTop: 10 },
+  refMsgError: { color: '#dc2626' },
+
+  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#191f28', marginTop: 22, marginBottom: 10 },
   policyList: { gap: 6 },
   policyItem: { fontSize: 12, color: '#8b95a1', lineHeight: 18 },
+
+  shareBar: { position: 'absolute', left: 0, right: 0, bottom: 60, paddingHorizontal: 16, paddingBottom: 8, paddingTop: 8 },
+  shareBtn: {
+    height: 54,
+    borderRadius: 999,
+    backgroundColor: '#3182f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3182f6',
+    shadowOpacity: 0.36,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  shareBtnText: { color: '#fff', fontSize: 15.5, fontWeight: '800' },
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: '#ffffff',
