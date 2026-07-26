@@ -7,7 +7,7 @@ import Barcode from 'react-native-barcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import WebBottomNav from '@/components/WebBottomNav';
-import { ApiError, apiFetchSWR, BASE_URL } from '@/lib/api';
+import { apiFetch, ApiError, apiFetchSWR, BASE_URL } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 
 // 웹 /coupons(static/coupons-inline-1.js)의 네이티브 구현.
@@ -109,6 +109,22 @@ export default function CouponsScreen() {
     } catch {}
   };
 
+  // 사용 가능 ↔ 사용 완료 (유저 직접 상태 변경, 웹 coupons-inline-1.js 그대로).
+  // 낙관적 업데이트 → /used POST → 실패 시 롤백.
+  const toggleUsed = useCallback((p: Purchase, used: boolean) => {
+    if ((p.status === 'used') === used) return; // 이미 그 상태
+    haptics.tap();
+    const prev = p.status;
+    const next = used ? 'used' : 'issued';
+    setPurchases((list) => (list || []).map((x) => (x.id === p.id ? { ...x, status: next } : x)));
+    apiFetch<{ ok?: boolean }>(`/api/store/purchases/${p.id}/used`, {
+      method: 'POST',
+      body: JSON.stringify({ used }),
+    }).catch(() => {
+      setPurchases((list) => (list || []).map((x) => (x.id === p.id ? { ...x, status: prev } : x)));
+    });
+  }, []);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
@@ -182,6 +198,22 @@ export default function CouponsScreen() {
                 </Text>
                 {status === 'pending' && (
                   <Text style={styles.pendingHint}>발급 처리 중 · 잠시 후 확인해주세요</Text>
+                )}
+                {(status === 'issued' || status === 'used') && (
+                  <View style={styles.useToggle}>
+                    <Pressable
+                      style={[styles.useSeg, status === 'issued' && styles.useSegOn]}
+                      onPress={() => toggleUsed(p, false)}
+                    >
+                      <Text style={[styles.useSegText, status === 'issued' && styles.useSegTextOn]}>사용 가능</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.useSeg, status === 'used' && styles.useSegOn]}
+                      onPress={() => toggleUsed(p, true)}
+                    >
+                      <Text style={[styles.useSegText, status === 'used' && styles.useSegTextOn]}>사용 완료</Text>
+                    </Pressable>
+                  </View>
                 )}
               </View>
             </Pressable>
@@ -303,6 +335,18 @@ const styles = StyleSheet.create({
   cardName: { fontSize: 14.5, fontWeight: '800', color: '#191f28' },
   cardMeta: { fontSize: 12, color: '#8b95a1', marginTop: 2 },
   pendingHint: { fontSize: 11.5, fontWeight: '700', color: '#b45309', marginTop: 4 },
+  useToggle: { flexDirection: 'row', alignSelf: 'flex-start', backgroundColor: '#f1f5f9', borderRadius: 8, padding: 2, gap: 2, marginTop: 8 },
+  useSeg: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  useSegOn: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  useSegText: { fontSize: 11, fontWeight: '700', color: '#94a3b8' },
+  useSegTextOn: { color: '#2563eb' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: '#ffffff',
