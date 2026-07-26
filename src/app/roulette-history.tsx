@@ -25,7 +25,7 @@ function ArrowIn({ muted }: { muted?: boolean }) {
       <Path
         d="M17 7 7 17 M15 17 H7 V9"
         fill="none"
-        stroke={muted ? '#9ca3af' : '#1370fb'}
+        stroke={muted ? '#9ca3af' : '#3182f6'}
         strokeWidth={2.4}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -125,22 +125,20 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     paddingVertical: 13,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
   },
   ic: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: '#eaf2ff',
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#f3f4f6',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  icMuted: { backgroundColor: '#f1f3f5' },
-  main: { flex: 1 },
-  title: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
-  date: { fontSize: 12.5, color: '#8b95a1', marginTop: 2 },
-  pts: { fontSize: 15, fontWeight: '800', color: '#1370fb' },
+  icMuted: {},
+  main: { flex: 1, gap: 3 },
+  title: { fontSize: 15, fontWeight: '800', color: '#191f28', letterSpacing: -0.2 },
+  date: { fontSize: 13, color: '#9ca3af' },
+  pts: { fontSize: 19, fontWeight: '800', color: '#3182f6', letterSpacing: -0.3 },
 });

@@ -40,7 +40,19 @@ const IMG = {
   coinsLfar: { uri: `${BASE_URL}/static/images/roulette/coins-far-left.png` },
   coinsLnear: { uri: `${BASE_URL}/static/images/roulette/coins-left.png` },
   coinsRight: { uri: `${BASE_URL}/static/images/roulette/coins-right.png` },
+  ticketBlue: { uri: `${BASE_URL}/static/images/roulette/ticket-blue.svg` },
+  ticketWhite: { uri: `${BASE_URL}/static/images/roulette/ticket-white.svg` },
 };
+
+// 히어로에 떠다니는 티켓 장식(웹 rou-cf) — 히어로 좌우 가장자리에 흩뿌림
+const HERO_DECO: { img: 'blue' | 'white'; left: string; top: number; size: number }[] = [
+  { img: 'blue', left: '5%', top: 150, size: 18 },
+  { img: 'blue', left: '80%', top: 226, size: 14 },
+  { img: 'white', left: '15%', top: 208, size: 13 },
+  { img: 'white', left: '85%', top: 168, size: 14 },
+  { img: 'white', left: '89%', top: 262, size: 18 },
+  { img: 'white', left: '6%', top: 262, size: 15 },
+];
 
 const CONSOLATIONS = ['다음엔 분명히!', '한 번 더 도전해보세요.', '오늘은 워밍업!', '행운은 다음 칸에 숨어있어요.'];
 
@@ -156,10 +168,29 @@ function IcArrowIn({ muted }: { muted?: boolean }) {
       <Path
         d="M17 7 7 17 M15 17 H7 V9"
         fill="none"
-        stroke={muted ? '#9ca3af' : '#1370fb'}
+        stroke={muted ? '#9ca3af' : '#3182f6'}
         strokeWidth={2.4}
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+function IcCard() {
+  // 웹 /static/ic_card.svg (티켓 배지 아이콘)
+  return (
+    <Svg viewBox="0 0 24 24" width={20} height={20}>
+      <Path
+        d="M5.84668 5H22.0733C23.0454 5 23.8333 5.78798 23.8333 6.76V17.44C23.8333 18.412 23.0454 19.2 22.0733 19.2H5.84668V5Z"
+        fill="#1370FB"
+      />
+      <Path
+        d="M14.2169 9.02501C14.4807 8.52323 15.1992 8.52323 15.4631 9.02501L15.9778 10.004C16.0798 10.1978 16.2661 10.3331 16.4819 10.3702L17.572 10.5572C18.1307 10.6531 18.3528 11.3364 17.9571 11.7424L17.1851 12.5345C17.0323 12.6914 16.9611 12.9104 16.9926 13.1271L17.1515 14.2216C17.233 14.7827 16.6518 15.205 16.1433 14.9541L15.1515 14.4647C14.9551 14.3678 14.7248 14.3678 14.5285 14.4647L13.5366 14.9541C13.0282 15.205 12.4469 14.7827 12.5284 14.2216L12.6873 13.1271C12.7188 12.9104 12.6476 12.6914 12.4948 12.5345L11.7228 11.7424C11.3271 11.3364 11.5492 10.6531 12.1079 10.5572L13.198 10.3702C13.4139 10.3331 13.6002 10.1978 13.7021 10.004L14.2169 9.02501Z"
+        fill="#ffffff"
+      />
+      <Path
+        d="M5.84631 5V19.2002H1.92639C0.954626 19.2001 0.166857 18.4122 0.166626 17.4404V15.3789C1.77223 15.1492 3.00647 13.7687 3.00647 12.0996C3.00627 10.4306 1.77216 9.04999 0.166626 8.82031V6.75977C0.166753 5.78793 0.954562 5.00013 1.92639 5H5.84631Z"
+        fill="#4F95FF"
       />
     </Svg>
   );
@@ -320,10 +351,20 @@ export default function RouletteScreen() {
             <Rect x="0" y="0" width="100%" height="100%" fill="url(#sky)" />
           </Svg>
 
+          {HERO_DECO.map((d, i) => (
+            <Image
+              key={i}
+              source={d.img === 'blue' ? IMG.ticketBlue : IMG.ticketWhite}
+              style={{ position: 'absolute', left: d.left as never, top: d.top, width: d.size, height: d.size }}
+              contentFit="contain"
+            />
+          ))}
+
           <Image source={IMG.title} style={styles.titleImg} contentFit="contain" transition={200} />
 
           <View style={styles.ticketBadge}>
-            <Text style={styles.ticketBadgeLabel}>보유 티켓 </Text>
+            <IcCard />
+            <Text style={styles.ticketBadgeLabel}> 보유 티켓 </Text>
             <Text style={styles.ticketBadgeCount}>{tickets}</Text>
             <Text style={styles.ticketBadgeLabel}>장</Text>
           </View>
@@ -753,20 +794,20 @@ const styles = StyleSheet.create({
   // History
   historyMore: { fontSize: 13, fontWeight: '700', color: '#3182f6' },
   historyEmpty: { textAlign: 'center', color: '#64748b', paddingVertical: 24, fontSize: 14 },
-  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 13 },
   historyIc: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: '#eaf2ff',
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#f3f4f6',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  historyIcMuted: { backgroundColor: '#f1f3f5' },
-  historyMain: { flex: 1 },
-  historyTitle: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
-  historyDate: { fontSize: 12.5, color: '#8b95a1', marginTop: 2 },
-  historyPts: { fontSize: 15, fontWeight: '800', color: '#1370fb' },
+  historyIcMuted: {},
+  historyMain: { flex: 1, gap: 3 },
+  historyTitle: { fontSize: 15, fontWeight: '800', color: '#191f28', letterSpacing: -0.2 },
+  historyDate: { fontSize: 13, color: '#9ca3af' },
+  historyPts: { fontSize: 19, fontWeight: '800', color: '#3182f6', letterSpacing: -0.3 },
 
   // Modal
   modalOverlay: {
