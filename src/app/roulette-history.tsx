@@ -1,21 +1,37 @@
-import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
 import WebBottomNav from '@/components/WebBottomNav';
 import { apiFetch, ApiError } from '@/lib/api';
 
-// 룰렛 전체 기록 (웹 /roulette-history). 페이지네이션: 50개씩 더 불러오기.
+// 룰렛 전체 기록 (웹 /roulette-history). 웹과 동일 표기: 화살표 아이콘 +
+// "캐시 당첨! / 꽝 / OO 당첨!" 제목 + YYYY-MM-DD + 우측 +N캐시. 20개씩 페이징.
 
 type Spin = { id: number; prize_key: string; prize_label: string; points_awarded: number; created_at: number };
 
-const PAGE = 50;
+const PAGE = 20;
 
 function fmtDate(ts: number): string {
   const d = new Date(ts * 1000);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function ArrowIn({ muted }: { muted?: boolean }) {
+  return (
+    <Svg viewBox="0 0 24 24" width={22} height={22}>
+      <Path
+        d="M17 7 7 17 M15 17 H7 V9"
+        fill="none"
+        stroke={muted ? '#9ca3af' : '#1370fb'}
+        strokeWidth={2.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
 }
 
 export default function RouletteHistoryScreen() {
@@ -70,18 +86,19 @@ export default function RouletteHistoryScreen() {
         }
         ListFooterComponent={loadingMore ? <Text style={styles.empty}>불러오는 중...</Text> : null}
         renderItem={({ item: s }) => {
-          const isWin = s.points_awarded > 0;
+          const win = s.points_awarded > 0;
+          const miss = !win && s.prize_key === 'miss';
+          const title = win ? '캐시 당첨!' : miss ? '꽝' : `${s.prize_label || '상품'} 당첨!`;
           return (
             <View style={styles.row}>
-              <Image
-                source={{ uri: 'https://shoppinglog.store/static/icons/cash.webp' }}
-                style={styles.coin}
-                contentFit="contain"
-              />
-              <Text style={[styles.label, isWin ? styles.win : styles.miss]}>
-                {isWin ? `+${s.points_awarded.toLocaleString('ko-KR')}캐시` : s.prize_label}
-              </Text>
-              <Text style={styles.date}>{fmtDate(s.created_at)}</Text>
+              <View style={[styles.ic, !win && styles.icMuted]}>
+                <ArrowIn muted={!win} />
+              </View>
+              <View style={styles.main}>
+                <Text style={styles.title}>{title}</Text>
+                <Text style={styles.date}>{fmtDate(s.created_at)}</Text>
+              </View>
+              {win && <Text style={styles.pts}>+{s.points_awarded.toLocaleString('ko-KR')}캐시</Text>}
             </View>
           );
         }}
@@ -113,9 +130,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
-  coin: { width: 30, height: 30 },
-  label: { flex: 1, fontSize: 16, fontWeight: '800' },
-  win: { color: '#3182f6' },
-  miss: { color: '#8b95a1' },
-  date: { fontSize: 14, color: '#8b95a1' },
+  ic: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: '#eaf2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  icMuted: { backgroundColor: '#f1f3f5' },
+  main: { flex: 1 },
+  title: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
+  date: { fontSize: 12.5, color: '#8b95a1', marginTop: 2 },
+  pts: { fontSize: 15, fontWeight: '800', color: '#1370fb' },
 });
