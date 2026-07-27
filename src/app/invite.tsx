@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Rect, Text as SvgText } from 'react-native-svg';
 
 import WebBottomNav from '@/components/WebBottomNav';
@@ -69,6 +69,7 @@ function IconGift() {
 }
 
 export default function InviteScreen() {
+  const insets = useSafeAreaInsets();
   const [data, setData] = useState<Referral | null>(null);
   const [refInput, setRefInput] = useState('');
   const [refMsg, setRefMsg] = useState('');
@@ -323,8 +324,8 @@ export default function InviteScreen() {
         </View>
       </ScrollView>
 
-      {/* 하단 고정 공유 버튼 (네비 위) */}
-      <View style={styles.shareBar}>
+      {/* 하단 고정 공유 버튼 (네비 위) — WebBottomNav 실제 높이(60 + 안전영역)만큼 띄운다 */}
+      <View style={[styles.shareBar, { bottom: 60 + insets.bottom }]}>
         <Pressable style={styles.shareBtn} onPress={doShare}>
           <Text style={styles.shareBtnText}>친구에게 공유하기</Text>
         </Pressable>
@@ -495,7 +496,7 @@ const styles = StyleSheet.create({
   policyList: { gap: 6 },
   policyItem: { fontSize: 12, color: '#8b95a1', lineHeight: 18 },
 
-  shareBar: { position: 'absolute', left: 0, right: 0, bottom: 60, paddingHorizontal: 16, paddingBottom: 8, paddingTop: 8 },
+  shareBar: { position: 'absolute', left: 0, right: 0, paddingHorizontal: 16, paddingBottom: 8, paddingTop: 8 },
   shareBtn: {
     height: 54,
     borderRadius: 999,
