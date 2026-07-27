@@ -7,7 +7,7 @@ import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 import WebBottomNav from '@/components/WebBottomNav';
 import { apiFetch, ApiError, apiFetchSWR, BASE_URL, isNativeScreenEnabled } from '@/lib/api';
-import { openExternalUrl } from '@/lib/externalLinks';
+import { openCoupangOutbound } from '@/lib/outbound';
 import * as haptics from '@/lib/haptics';
 import { markWebStateDirty, requestWebNav } from '@/lib/webNav';
 
@@ -87,19 +87,7 @@ export default function TicketsScreen() {
     }, []),
   );
 
-  // 쇼핑몰 구경: 티켓 지급(하루 1회) 후 쿠팡으로 이동.
-  // 딥링크 방식 — /go/coupang?format=json 으로 제휴 클릭을 서버에 먼저 기록하고(Bearer 인증
-  // → subId 심긴 최종 URL) 받은 link.coupang.com 딥링크를 openExternalUrl 로 열어
-  // 쿠팡 앱을 바로 띄운다(웹뷰 경유 X). 실패 시에만 웹뷰 폴백.
-  const openCoupangDeeplink = () => {
-    apiFetch<{ url?: string }>('/go/coupang?format=json')
-      .then((d) => {
-        if (d?.url) openExternalUrl(d.url);
-        else openWeb('/go/coupang');
-      })
-      .catch(() => openWeb('/go/coupang'));
-  };
-
+  // 쇼핑몰 구경: 티켓 지급(하루 1회) 후 쿠팡 앱으로 딥링크 이동(openCoupangOutbound).
   const doBrowse = () => {
     if (browseBusy) return;
     haptics.tap();
@@ -119,7 +107,7 @@ export default function TicketsScreen() {
         setBrowseBusy(false);
         setTimeout(() => {
           setToast('');
-          openCoupangDeeplink();
+          openCoupangOutbound();
         }, 700);
       });
   };

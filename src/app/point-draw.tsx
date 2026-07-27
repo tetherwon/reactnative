@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import WebBottomNav from '@/components/WebBottomNav';
 import { apiFetch, ApiError, apiFetchSWR, BASE_URL, isNativeScreenEnabled } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
+import { openCoupangOutbound } from '@/lib/outbound';
 import { markWebStateDirty, requestWebNav } from '@/lib/webNav';
 
 // 웹 /point-draw(static/point-draw-inline-1.js)의 네이티브 구현.
@@ -209,7 +210,13 @@ export default function PointDrawScreen() {
                   <Text style={styles.balanceCoinText}>P</Text>
                 </View>
               </View>
-              <Pressable style={styles.balanceLink} onPress={() => openWeb('/go/coupang')}>
+              <Pressable
+                style={styles.balanceLink}
+                onPress={() => {
+                  haptics.tap();
+                  openCoupangOutbound();
+                }}
+              >
                 <Text style={styles.balanceLinkText}>쿠팡에서 적립 ›</Text>
               </Pressable>
             </View>
