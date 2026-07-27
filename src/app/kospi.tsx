@@ -51,7 +51,7 @@ export default function KospiScreen() {
   const [msg, setMsg] = useState('');
 
   const load = useCallback(() => {
-    apiFetchSWR<KospiState>('/api/kospi/state', setState, 2 * 60_000).catch(() => {});
+    apiFetchSWR<KospiState>('/api/kospi/state', setState).catch(() => {});
     apiFetchSWR<{ entries: KospiEntry[] }>('/api/kospi/history?limit=10', (d) =>
       setEntries(d.entries || []),
     ).catch((e) => {

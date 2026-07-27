@@ -219,7 +219,7 @@ export default function RouletteScreen() {
   }, []);
 
   const loadAll = useCallback(() => {
-    apiFetchSWR<Status>('/api/roulette/status', setStatus, 5 * 60_000).catch((e) => {
+    apiFetchSWR<Status>('/api/roulette/status', setStatus).catch((e) => {
       if (e instanceof ApiError && e.status === 401) router.back();
     });
     apiFetchSWR<{ prizes: Prize[] }>('/api/roulette/prizes', (d) => {
@@ -239,7 +239,9 @@ export default function RouletteScreen() {
         setStatus((s) => (s ? { ...s, streak_days: d.streak_days, checked_today: true } : s));
         if (d.ticket_awarded) {
           haptics.success();
-          apiFetchSWR<Status>('/api/roulette/status', setStatus, 0).catch(() => {});
+          // 방금 티켓을 받은 직후라 캐시(획득 전 값)를 먼저 그리면 수치가
+          // 되돌아갔다 올라오는 깜빡임이 생긴다 → 네트워크 값만 쓴다.
+          apiFetch<Status>('/api/roulette/status').then(setStatus).catch(() => {});
         }
       })
       .catch(() => {});

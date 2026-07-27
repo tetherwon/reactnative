@@ -99,18 +99,27 @@ export async function purgeSwrCache(): Promise<void> {
 
 /** 캐시가 있으면 onData(data, true)로 즉시 1회 호출한 뒤, 네트워크 응답으로
  * onData(data, false)를 다시 호출한다. 네트워크 실패 시 캐시가 이미 그려졌으면
- * 조용히 넘어가고, 캐시도 없었으면 에러를 던진다. */
+ * 조용히 넘어가고, 캐시도 없었으면 에러를 던진다.
+ *
+ * ⚠️ 캐시는 '나이와 무관하게' 항상 먼저 그린다.
+ * 예전엔 ttlMs(기본 10분)가 지난 캐시는 아예 안 그려서, 디스크에 멀쩡한 데이터를
+ * 두고도 화면이 null 상태로 떨어져 "불러오는 중…" 스피너가 떴다. 앱을 10분 뒤에
+ * 다시 열면(=사실상 모든 콜드스타트) 모든 네이티브 화면이 그랬다 — SWR이 아니라
+ * 그냥 TTL 캐시였던 셈. 어차피 바로 뒤에서 네트워크로 갱신하므로 낡은 값이
+ * 보이는 건 한 프레임뿐이고, 빈 화면보다 언제나 낫다.
+ *
+ * 캐시가 이전 계정 것일 걱정은 없다 — clearToken()/setToken()이 로그아웃·계정
+ * 전환 시 purgeSwrCache()로 비운다. */
 export async function apiFetchSWR<T>(
   path: string,
   onData: (data: T, fromCache: boolean) => void,
-  ttlMs = 10 * 60_000,
 ): Promise<void> {
   let served = false;
   try {
     const raw = await AsyncStorage.getItem(SWR_PREFIX + path);
     if (raw) {
       const obj = JSON.parse(raw) as { ts: number; data: T };
-      if (obj && obj.data !== undefined && Date.now() - (obj.ts || 0) < ttlMs) {
+      if (obj && obj.data !== undefined) {
         served = true;
         onData(obj.data, true);
       }

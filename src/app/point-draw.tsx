@@ -55,7 +55,7 @@ export default function PointDrawScreen() {
     apiFetchSWR<BandsResp>('/api/draw/bands', (d) => {
       setBalance(Number(d.balance || 0));
       setBands(d.bands || []);
-    }, 5 * 60_000).catch((e) => {
+    }).catch((e) => {
       if (e instanceof ApiError && e.status === 401) router.back();
     });
   }, []);

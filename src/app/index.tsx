@@ -117,6 +117,11 @@ export default function HomeScreen() {
   const pendingUrl = useRef<string | null>(null);
   const lastBackPress = useRef(0);
   const [firstLoadDone, setFirstLoadDone] = useState(false);
+  // 로딩 오버레이는 onLoadEnd(=모든 서브리소스 완료)까지 불투명하게 화면을 덮고
+  // 있었다. 본문은 진작 그려졌는데 파란 화면만 수백 ms 더 보는 셈이라 앱이
+  // 느리게 느껴지는 큰 원인이었다. 페인트가 충분히 진행되면(0.65) 먼저 걷어낸다.
+  // onLoadEnd/onError는 여전히 백스톱으로 남는다(progress가 안 오는 경우 대비).
+  const dismissLoader = useCallback(() => setFirstLoadDone(true), []);
   const [loadError, setLoadError] = useState(false);
   // native_screens 설정이 로드/갱신될 때마다 bump — injectedJavaScriptBeforeContentLoaded
   // (콘텐츠 로드 전 __slNativePaths 주입)를 재계산해 다음 내비게이션에 반영한다.
@@ -530,7 +535,8 @@ export default function HomeScreen() {
   const kakaoLoginInFlight = useRef(false);
   const kakaoRecoveryChecked = useRef(false);
   const onLoadEnd = () => {
-    setFirstLoadDone(true);
+    // 진행률로 이미 걷혔으면 no-op. 백스톱: progress 이벤트가 안 오는 경우 대비.
+    dismissLoader();
     const failed = lastLoadFailed.current;
     lastLoadFailed.current = false;
     isLoaded.current = true;
@@ -581,6 +587,9 @@ export default function HomeScreen() {
           onOpenWindow={onOpenWindow}
           onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
           onLoadEnd={onLoadEnd}
+          onLoadProgress={({ nativeEvent }) => {
+            if (nativeEvent.progress >= 0.65) dismissLoader();
+          }}
           onMessage={onMessage}
           injectedJavaScriptBeforeContentLoaded={beforeContentLoadedJS}
           onError={() => {

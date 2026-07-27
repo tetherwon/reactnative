@@ -96,7 +96,7 @@ export default function HomeScreen() {
       let alive = true;
       apiFetchSWR<{ shops: Shop[] }>('/api/shops', (d) => {
         if (alive) setShops(d.shops || []);
-      }, 30 * 60_000).catch(() => {});
+      }).catch(() => {});
       apiFetchSWR<Overview>('/api/me/overview', (d) => {
         if (alive) setOverview(d);
       }).catch((e) => {
