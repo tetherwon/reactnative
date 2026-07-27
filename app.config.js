@@ -104,7 +104,11 @@ module.exports = {
     updates: {
       url: 'https://u.expo.dev/fbefbc24-be24-43b4-99a1-208cdead860b',
     },
-    orientation: 'portrait',
+    // Android 16부터 폴더블·태블릿에서는 방향/크기 제한이 무시된다. 제한을 걸어둬도
+    // 대형 화면에서는 어차피 회전하므로, Play Console 권고대로 제한을 없앤다
+    // (android:screenOrientation="portrait" 가 매니페스트에서 빠진다).
+    // 콘텐츠는 max-width 640px 모바일 웹이라 가로에서도 가운데 정렬로 표시된다.
+    orientation: 'default',
     icon: './assets/images/icon.png',
     scheme: 'webview',
     userInterfaceStyle: 'automatic',
@@ -210,6 +214,7 @@ module.exports = {
       // 카카오톡 앱-투-앱(원탭) 로그인에 필요한 패키지 가시성 선언. 콘솔 키 해시가
       // 다 맞아도 이게 없으면 Android 11+에서 항상 웹뷰(아이디/비번) 로그인으로 빠진다.
       './plugins/withKakaoQueries',
+      './plugins/withAndroidOptimizations',
     ],
     experiments: {
       typedRoutes: true,
