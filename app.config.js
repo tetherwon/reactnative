@@ -9,11 +9,33 @@ const KAKAO_NATIVE_APP_KEY = process.env.KAKAO_NATIVE_APP_KEY || '';
 // 빌드에서는 조용히 넘어가지 않고 즉시 실패시킨다.
 // 해결: 빌드에 쓰는 EAS 환경(preview/production 각각!)에 KAKAO_NATIVE_APP_KEY 등록.
 //       eas env:list --environment preview 로 확인. (docs/RELEASE.md)
-if (process.env.EAS_BUILD === 'true' && !KAKAO_NATIVE_APP_KEY) {
-  throw new Error(
-    '[카카오 로그인] KAKAO_NATIVE_APP_KEY 미설정 — 이대로 빌드하면 카카오톡 ' +
-      '간편로그인이 아이디/비번 입력으로 폴백하는 바이너리가 나온다. ' +
-      '이 빌드가 쓰는 EAS 환경(예: preview)에 KAKAO_NATIVE_APP_KEY를 등록할 것.',
+// ⚠️ 이 가드는 EAS 빌드만 막는다는 구멍이 있었다. 로컬 빌드(expo prebuild /
+// run:android)는 EAS_BUILD가 없어 키가 비어도 조용히 통과 → 버전은 같은데
+// 카카오톡 로그인만 안 되는 바이너리가 나온다(이 경로로 한 번 더 헤맸다).
+// 그래서 네이티브 산출물을 만드는 커맨드면 로컬에서도 즉시 실패시키고,
+// 그 외(dev 서버 등)에서도 최소한 경고는 남긴다.
+const _isNativeBuildCmd = process.argv.some(
+  (a) => a === 'prebuild' || a === 'run:android' || a === 'run:ios',
+);
+if (!KAKAO_NATIVE_APP_KEY) {
+  if (process.env.EAS_BUILD === 'true') {
+    throw new Error(
+      '[카카오 로그인] KAKAO_NATIVE_APP_KEY 미설정 — 이대로 빌드하면 카카오톡 ' +
+        '간편로그인이 아이디/비번 입력으로 폴백하는 바이너리가 나온다. ' +
+        '이 빌드가 쓰는 EAS 환경(예: preview)에 KAKAO_NATIVE_APP_KEY를 등록할 것.',
+    );
+  }
+  if (_isNativeBuildCmd) {
+    throw new Error(
+      '[카카오 로그인] KAKAO_NATIVE_APP_KEY 미설정 (로컬 빌드) — 카카오톡 간편로그인이 ' +
+        '아이디/비번 화면으로 폴백하는 바이너리가 나온다. 빌드 전에 키를 넣을 것:\n' +
+        '  KAKAO_NATIVE_APP_KEY=<네이티브앱키> npx expo run:android\n' +
+        '  (또는 셸에 export 후 빌드)',
+    );
+  }
+  console.warn(
+    '[카카오 로그인] KAKAO_NATIVE_APP_KEY 가 비어 있음 — 이 설정으로 만든 네이티브 ' +
+      '바이너리는 카카오톡 앱투앱 로그인이 동작하지 않고 아이디/비번 화면으로 폴백한다.',
   );
 }
 
