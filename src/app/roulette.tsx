@@ -20,11 +20,13 @@ import * as haptics from '@/lib/haptics';
 import { markWebStateDirty, requestWebNav } from '@/lib/webNav';
 
 // 웹 /roulette 의 네이티브 구현. 휠은 웹 SVG를 그대로 구운 이미지
-// (assets/images/roulette-wheel.png)를 reanimated 로 회전시킨다.
+// (assets/images/roulette-wheel.webp)를 reanimated 로 회전시킨다.
 // ⚠️ 세그먼트 순서는 서버 ROULETTE_PRIZES(app/db.py) 순서와 같아야 한다.
 // 서버 확률표가 바뀌면 /api/roulette/prizes 키 순서와 대조해 어긋나면
 // 네이티브 스핀을 막고 웹 버전으로 폴백한다.
-const WHEEL_IMAGE = require('../../assets/images/roulette-wheel.png');
+// 1080px WebP — 표시 최대 360pt(3x 밀도=1080px)라 원본 1356² PNG(573KB)는
+// 과대했다. 디코딩 메모리도 7.0MB → 4.4MB로 줄어든다.
+const WHEEL_IMAGE = require('../../assets/images/roulette-wheel.webp');
 const WHEEL_ORDER = ['miss', 'p3', 'p5', 'p10', 'p100', 'p1000', 'mega', 'p1'];
 const SLICE_DEG = 360 / WHEEL_ORDER.length;
 
