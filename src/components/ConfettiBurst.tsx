@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -14,7 +14,6 @@ import Animated, {
 // burstKey 가 바뀔 때마다 count 만큼 파티클을 새로 발사한다(0이면 아무 것도 안 함).
 
 const COLORS = ['#facc15', '#2563eb', '#10b981', '#ef4444', '#a855f7'];
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 type Particle = {
   key: string;
@@ -26,7 +25,7 @@ type Particle = {
   rot: number;
 };
 
-function makeParticles(count: number, seed: number): Particle[] {
+function makeParticles(count: number, seed: number, screenW: number, screenH: number): Particle[] {
   const out: Particle[] = [];
   for (let i = 0; i < count; i += 1) {
     // 결정적 의사난수(스핀별 seed 로 매번 다른 모양)
@@ -37,16 +36,26 @@ function makeParticles(count: number, seed: number): Particle[] {
       key: `${seed}-${i}`,
       color: COLORS[i % COLORS.length],
       size: 6 + r1 * 7,
-      dx: (r2 - 0.5) * SCREEN_W * 1.1,
+      dx: (r2 - 0.5) * screenW * 1.1,
       rise: 60 + r3 * 140,
-      fall: SCREEN_H * (0.55 + r1 * 0.4),
+      fall: screenH * (0.55 + r1 * 0.4),
       rot: (r2 - 0.5) * 8,
     });
   }
   return out;
 }
 
-function ConfettiPiece({ p, progress }: { p: Particle; progress: SharedValue<number> }) {
+function ConfettiPiece({
+  p,
+  progress,
+  screenW,
+  screenH,
+}: {
+  p: Particle;
+  progress: SharedValue<number>;
+  screenW: number;
+  screenH: number;
+}) {
   const style = useAnimatedStyle(() => {
     const t = progress.value;
     return {
@@ -63,8 +72,8 @@ function ConfettiPiece({ p, progress }: { p: Particle; progress: SharedValue<num
       style={[
         {
           position: 'absolute',
-          left: SCREEN_W / 2,
-          top: SCREEN_H / 3,
+          left: screenW / 2,
+          top: screenH / 3,
           width: p.size,
           height: p.size * 0.6,
           backgroundColor: p.color,
@@ -77,9 +86,12 @@ function ConfettiPiece({ p, progress }: { p: Particle; progress: SharedValue<num
 }
 
 export default function ConfettiBurst({ burstKey, count }: { burstKey: number; count: number }) {
+  // 화면 크기를 모듈 로드 시점에 굳히면 회전 후 조각이 화면 밖(세로 기준 위치)에
+  // 뿌려진다. orientation을 'default'로 푼 뒤로 실측값을 써야 한다.
+  const { width: screenW, height: screenH } = useWindowDimensions();
   const particles = useMemo(
-    () => (burstKey > 0 && count > 0 ? makeParticles(count, burstKey) : []),
-    [burstKey, count],
+    () => (burstKey > 0 && count > 0 ? makeParticles(count, burstKey, screenW, screenH) : []),
+    [burstKey, count, screenW, screenH],
   );
   const progress = useSharedValue(0);
 
@@ -94,7 +106,7 @@ export default function ConfettiBurst({ burstKey, count }: { burstKey: number; c
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {particles.map((p) => (
-        <ConfettiPiece key={p.key} p={p} progress={progress} />
+        <ConfettiPiece key={p.key} p={p} progress={progress} screenW={screenW} screenH={screenH} />
       ))}
     </View>
   );

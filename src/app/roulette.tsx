@@ -1,7 +1,16 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Dimensions,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -30,6 +39,10 @@ const WHEEL_IMAGE = require('../../assets/images/roulette-wheel.webp');
 const WHEEL_ORDER = ['miss', 'p3', 'p5', 'p10', 'p100', 'p1000', 'mega', 'p1'];
 const SLICE_DEG = 360 / WHEEL_ORDER.length;
 
+// ⚠️ 아래 두 값은 '모듈 로드 시점'의 세로 기준이라 회전해도 바뀌지 않는다.
+// StyleSheet의 정적 기본값으로만 쓰고, 실제 크기는 컴포넌트에서
+// useWindowDimensions()로 계산해 인라인 스타일로 덮는다.
+// 새 스타일에 이 상수를 그냥 쓰면 가로모드에서 다시 화면을 넘친다.
 const SCREEN_W = Dimensions.get('window').width;
 const WHEEL_SIZE = Math.min(SCREEN_W - 44, 360);
 
@@ -201,6 +214,18 @@ function IcCard() {
 export default function RouletteScreen() {
   const [status, setStatus] = useState<Status | null>(null);
   const [orderMismatch, setOrderMismatch] = useState(false);
+  // 언마운트 후 늦게 도착한 응답을 막는 기본 가드. 포커스 이펙트는 더 정확한
+  // (블러 시점까지 잡는) alive를 직접 넘긴다.
+  // 화면 폭은 회전하면 바뀐다. 모듈 로드 시점에 한 번 잡아 StyleSheet에 굳혀두면
+  // (orientation을 'default'로 푼 뒤로) 가로에서 휠이 세로 기준 크기 그대로라
+  // 화면을 넘친다. 실측값으로 매 렌더 계산한다.
+  const { width: winW } = useWindowDimensions();
+  const wheelSize = Math.min(winW - 44, 360);
+  const centerSize = wheelSize * 0.284;
+  const titleW = Math.min(winW * 0.82, 300);
+  const missionIconSize = Math.min(winW * 0.18, 72);
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<SpinResult | null>(null);
   const [winners, setWinners] = useState<Winner[]>([]);
@@ -220,30 +245,43 @@ export default function RouletteScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadAll = useCallback(() => {
-    apiFetchSWR<Status>('/api/roulette/status', setStatus).catch((e) => {
-      if (e instanceof ApiError && e.status === 401) router.back();
+  // alive: 화면을 떠난 뒤 늦게 도착한 응답이 setState 하거나, 늦은 401이
+  // '지금 보고 있는 다른 화면'을 router.back()으로 닫아버리는 것을 막는다.
+  const loadAll = useCallback((alive: () => boolean = () => mounted.current) => {
+    apiFetchSWR<Status>('/api/roulette/status', (d) => { if (alive()) setStatus(d); }).catch((e) => {
+      if (alive() && e instanceof ApiError && e.status === 401) router.back();
     });
     apiFetchSWR<{ prizes: Prize[] }>('/api/roulette/prizes', (d) => {
+      if (!alive()) return;
       const keys = (d.prizes || []).map((p) => p.key);
       setOrderMismatch(keys.join(',') !== WHEEL_ORDER.join(','));
     }).catch(() => {});
-    apiFetchSWR<{ winners: Winner[] }>('/api/roulette/recent', (d) => setWinners((d.winners || []).slice(0, 8))).catch(
-      () => {},
-    );
-    apiFetchSWR<{ spins: Spin[] }>('/api/roulette/history?limit=5', (d) => setHistory(d.spins || [])).catch(() => {});
+    apiFetchSWR<{ winners: Winner[] }>('/api/roulette/recent', (d) => {
+      if (alive()) setWinners((d.winners || []).slice(0, 8));
+    }).catch(() => {});
+    apiFetchSWR<{ spins: Spin[] }>('/api/roulette/history?limit=5', (d) => {
+      if (alive()) setHistory(d.spins || []);
+    }).catch(() => {});
     // 웹과 동일하게 진입 시 자동 출석 체크인 (버튼 없음)
     apiFetch<{ streak_days: number; checked_today: boolean; ticket_awarded: boolean }>('/api/roulette/check-in', {
       method: 'POST',
     })
       .then((d) => {
-        markWebStateDirty();
+        if (!alive()) return;
         setStatus((s) => (s ? { ...s, streak_days: d.streak_days, checked_today: true } : s));
+        // 웹뷰를 더럽히는 건 티켓을 실제로 받았을 때만.
+        // check_in_streak는 7일 달성 전까지 내부 streak 테이블만 갱신하고 웹 홈에
+        // 보이는 값은 아무것도 바꾸지 않는다. 무조건 호출하던 탓에 이미 출석한
+        // 유저도 룰렛에 들를 때마다 웹 홈이 통째로 리로드되고(index.tsx가 이
+        // 플래그를 location.reload()로 처리) 스크롤 위치가 날아갔다.
         if (d.ticket_awarded) {
+          markWebStateDirty();
           haptics.success();
           // 방금 티켓을 받은 직후라 캐시(획득 전 값)를 먼저 그리면 수치가
           // 되돌아갔다 올라오는 깜빡임이 생긴다 → 네트워크 값만 쓴다.
-          apiFetch<Status>('/api/roulette/status').then(setStatus).catch(() => {});
+          apiFetch<Status>('/api/roulette/status')
+            .then((st) => { if (alive()) setStatus(st); })
+            .catch(() => {});
         }
       })
       .catch(() => {});
@@ -251,7 +289,9 @@ export default function RouletteScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadAll();
+      let on = true;
+      loadAll(() => on);
+      return () => { on = false; };
     }, [loadAll]),
   );
 
@@ -374,7 +414,12 @@ export default function RouletteScreen() {
             />
           ))}
 
-          <Image source={IMG.title} style={styles.titleImg} contentFit="contain" transition={200} />
+          <Image
+            source={IMG.title}
+            style={[styles.titleImg, { width: titleW, height: titleW * (128.41 / 306.23) }]}
+            contentFit="contain"
+            transition={200}
+          />
 
           <View style={styles.ticketBadge}>
             <IcCard />
@@ -384,9 +429,13 @@ export default function RouletteScreen() {
           </View>
 
           {/* 휠 */}
-          <View style={styles.wheelWrap}>
+          <View style={[styles.wheelWrap, { width: wheelSize, height: wheelSize }]}>
             <Image source={IMG.coinsLfar} style={[styles.coins, styles.coinsLfar]} contentFit="contain" />
-            <Image source={IMG.coinsLnear} style={[styles.coins, styles.coinsLnear]} contentFit="contain" />
+            <Image
+              source={IMG.coinsLnear}
+              style={[styles.coins, styles.coinsLnear, { left: wheelSize * 0.13 }]}
+              contentFit="contain"
+            />
             <Image source={IMG.coinsRight} style={[styles.coins, styles.coinsRight]} contentFit="contain" />
 
             <View style={styles.pointer}>
@@ -400,10 +449,14 @@ export default function RouletteScreen() {
                 />
               </Svg>
             </View>
-            <Animated.View style={[styles.wheel, wheelStyle]}>
+            <Animated.View style={[styles.wheel, { width: wheelSize, height: wheelSize }, wheelStyle]}>
               <Image source={WHEEL_IMAGE} style={styles.wheelImg} contentFit="contain" />
             </Animated.View>
-            <Pressable style={styles.startBtn} onPress={spin} disabled={spinning}>
+            <Pressable
+              style={[styles.startBtn, { width: centerSize, height: centerSize, borderRadius: centerSize / 2 }]}
+              onPress={spin}
+              disabled={spinning}
+            >
               <Text style={styles.startBtnText}>START</Text>
             </Pressable>
           </View>
@@ -477,7 +530,7 @@ export default function RouletteScreen() {
           </View>
           <View style={styles.missionGrid}>
             <Pressable style={styles.missionCard} onPress={() => goNativeOrWeb('invite', '/invite')}>
-              <View style={styles.missionIcon}>
+              <View style={[styles.missionIcon, { width: missionIconSize, height: missionIconSize }]}>
                 <IcLoveLetter />
               </View>
               <Text style={styles.missionLabel}>친구초대</Text>
@@ -486,7 +539,7 @@ export default function RouletteScreen() {
               </View>
             </Pressable>
             <Pressable style={styles.missionCard} onPress={() => openWeb('/')}>
-              <View style={styles.missionIcon}>
+              <View style={[styles.missionIcon, { width: missionIconSize, height: missionIconSize }]}>
                 <IcCart />
               </View>
               <Text style={styles.missionLabel}>쇼핑하기</Text>
@@ -495,7 +548,7 @@ export default function RouletteScreen() {
               </View>
             </Pressable>
             <Pressable style={styles.missionCard} onPress={() => goNativeOrWeb('tickets', '/tickets')}>
-              <View style={styles.missionIcon}>
+              <View style={[styles.missionIcon, { width: missionIconSize, height: missionIconSize }]}>
                 <IcTicket />
               </View>
               <Text style={styles.missionLabel}>티켓 충전</Text>

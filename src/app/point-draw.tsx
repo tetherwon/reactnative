@@ -51,19 +51,29 @@ export default function PointDrawScreen() {
   const [highlight, setHighlight] = useState(-1); // 릴 하이라이트 인덱스
   const [winIdx, setWinIdx] = useState(-1);
   const [result, setResult] = useState<{ won: DrawResp['won']; sub: string; blank: boolean } | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  // 언마운트 후 늦게 도착한 응답을 막는 기본 가드. 포커스 이펙트는 더 정확한
+  // (블러 시점까지 잡는) alive를 직접 넘긴다.
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
 
-  const loadBands = useCallback(() => {
+  // alive: 화면을 떠난 뒤 늦게 도착한 응답이 setState 하거나, 늦은 401이
+  // '지금 보고 있는 다른 화면'을 router.back()으로 닫아버리는 것을 막는다.
+  const loadBands = useCallback((alive: () => boolean = () => mounted.current) => {
     apiFetchSWR<BandsResp>('/api/draw/bands', (d) => {
+      if (!alive()) return;
       setBalance(Number(d.balance || 0));
       setBands(d.bands || []);
     }).catch((e) => {
-      if (e instanceof ApiError && e.status === 401) router.back();
+      if (alive() && e instanceof ApiError && e.status === 401) router.back();
     });
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadBands();
+      let on = true;
+      loadBands(() => on);
+      return () => { on = false; };
     }, [loadBands]),
   );
 
@@ -145,6 +155,7 @@ export default function PointDrawScreen() {
     const b = current;
     if (!b || drawing) return;
     if (b.drawn_today || balance < b.cost_points) return;
+    setErrorMsg('');
     setDrawing(true);
     haptics.tap();
     const items = b.items || [];
@@ -192,6 +203,9 @@ export default function PointDrawScreen() {
           setBands((bs) => (bs || []).map((x) => (x.id === b.id ? { ...x, drawn_today: true } : x)));
           setCurrent((c) => (c && c.id === b.id ? { ...c, drawn_today: true } : c));
         }
+        // 실패를 반드시 알린다. 예전엔 릴만 멈추고 아무 문구도 안 떠서, 포인트가
+        // 빠졌는지 아닌지를 유저가 알 방법이 없었다(돈 화면인데).
+        setErrorMsg(e instanceof ApiError ? e.message : '잠깐 문제가 생겼어요. 다시 시도해 주세요.');
         haptics.error();
       });
   }
@@ -357,6 +371,7 @@ export default function PointDrawScreen() {
             </View>
           </ScrollView>
           <View style={styles.ctaBar}>
+            {!!errorMsg && <Text style={styles.drawError}>{errorMsg}</Text>}
             <Pressable
               style={[styles.cta, ctaState.disabled && styles.ctaMuted]}
               onPress={doDraw}
@@ -556,6 +571,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f1f3f6',
   },
+  drawError: { color: '#dc2626', fontSize: 13, fontWeight: '700', textAlign: 'center', marginBottom: 8 },
   cta: {
     minHeight: 54,
     borderRadius: 16,
