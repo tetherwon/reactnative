@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
@@ -67,6 +67,19 @@ export default function TicketsScreen() {
   const [browseClaimed, setBrowseClaimed] = useState(false);
   const [browseBusy, setBrowseBusy] = useState(false);
   const [toast, setToast] = useState('');
+  // 토스트를 잠깐 보여준 뒤 쿠팡으로 넘긴다. 이펙트로 예약해야 언마운트 시
+  // cleanup이 자동으로 타이머를 취소한다 — 안 그러면 유저가 뒤로가기로 취소했는데도
+  // 0.7초 뒤 앱이 쿠팡으로 튀고, 제휴 클릭까지 기록된다.
+  const [pendingOutbound, setPendingOutbound] = useState(false);
+  useEffect(() => {
+    if (!pendingOutbound) return undefined;
+    const id = setTimeout(() => {
+      setPendingOutbound(false);
+      setToast('');
+      openCoupangOutbound();
+    }, 700);
+    return () => clearTimeout(id);
+  }, [pendingOutbound]);
 
   useFocusEffect(
     useCallback(() => {
@@ -105,10 +118,7 @@ export default function TicketsScreen() {
       })
       .finally(() => {
         setBrowseBusy(false);
-        setTimeout(() => {
-          setToast('');
-          openCoupangOutbound();
-        }, 700);
+        setPendingOutbound(true);
       });
   };
 

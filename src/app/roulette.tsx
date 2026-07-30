@@ -15,7 +15,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-nativ
 
 import ConfettiBurst from '@/components/ConfettiBurst';
 import WebBottomNav from '@/components/WebBottomNav';
-import { apiFetch, ApiError, apiFetchSWR, BASE_URL, isNativeScreenEnabled } from '@/lib/api';
+import { apiFetch, ApiError, apiFetchSWR, BASE_URL, isNativeScreenEnabled, patchSwrCache } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 import { markWebStateDirty, requestWebNav } from '@/lib/webNav';
 
@@ -272,6 +272,11 @@ export default function RouletteScreen() {
       setBurst((b) => b + 1);
       haptics.success();
     } else {
+      // 꽝이면 콘페티 개수를 0으로 되돌린다. 안드로이드 Modal은 visible=false일 때
+      // render()가 null을 반환해(RN Modal.js) 자식이 통째로 언마운트되고, 다음에
+      // 열릴 때 다시 마운트되면서 ConfettiBurst의 mount 이펙트가 재실행된다.
+      // 그때 직전 '당첨' 값이 그대로 남아 있으면 꽝 화면에 축포가 터진다.
+      setBurstCount(0);
       haptics.tap();
     }
   }, []);
@@ -291,6 +296,11 @@ export default function RouletteScreen() {
       .then((res) => {
         markWebStateDirty();
         setStatus((s) => (s ? { ...s, ticket_count: res.ticket_count } : s));
+        // 캐시에도 반영 — 안 하면 다음 진입 때 '소모 전' 티켓 수가 되살아난다.
+        patchSwrCache<Status>('/api/roulette/status', (prev) => ({
+          ...prev,
+          ticket_count: res.ticket_count,
+        }));
         const idx = WHEEL_ORDER.indexOf(res.prize_key);
         const safeIdx = idx >= 0 ? idx : 0;
         cancelAnimation(rotation);

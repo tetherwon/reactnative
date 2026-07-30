@@ -5,7 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, ToastAndroid, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import WebBottomNav from '@/components/WebBottomNav';
-import { apiFetch, ApiError, apiFetchSWR, BASE_URL, isNativeScreenEnabled } from '@/lib/api';
+import { apiFetch, ApiError, apiFetchSWR, BASE_URL, isNativeScreenEnabled, patchSwrCache } from '@/lib/api';
 import * as haptics from '@/lib/haptics';
 import { openCoupangOutbound } from '@/lib/outbound';
 import { markWebStateDirty, requestWebNav } from '@/lib/webNav';
@@ -47,6 +47,7 @@ export default function PointDrawScreen() {
   const [bands, setBands] = useState<Band[] | null>(null);
   const [current, setCurrent] = useState<Band | null>(null);
   const [drawing, setDrawing] = useState(false);
+  const [outboundBusy, setOutboundBusy] = useState(false);
   const [highlight, setHighlight] = useState(-1); // 릴 하이라이트 인덱스
   const [winIdx, setWinIdx] = useState(-1);
   const [result, setResult] = useState<{ won: DrawResp['won']; sub: string; blank: boolean } | null>(null);
@@ -160,6 +161,15 @@ export default function PointDrawScreen() {
           setBands((bs) =>
             (bs || []).map((x) => (x.id === b.id ? { ...x, drawn_today: true } : x)),
           );
+          // 캐시에도 반영 — 안 하면 다음 진입 때 차감 전 포인트와 활성화된
+          // 뽑기 버튼이 되살아난다(오프라인이면 무기한).
+          patchSwrCache<BandsResp>('/api/draw/bands', (prev) => ({
+            ...prev,
+            balance: Number(body.balance != null ? body.balance : prev.balance),
+            bands: (prev.bands || []).map((x) =>
+              x.id === b.id ? { ...x, drawn_today: true } : x,
+            ),
+          }));
           setCurrent((c) => (c && c.id === b.id ? { ...c, drawn_today: true } : c));
           const blank = body.status === 'blank';
           setResult({
@@ -211,10 +221,14 @@ export default function PointDrawScreen() {
                 </View>
               </View>
               <Pressable
-                style={styles.balanceLink}
+                style={[styles.balanceLink, outboundBusy && { opacity: 0.5 }]}
+                disabled={outboundBusy}
                 onPress={() => {
+                  // 응답까지 아무 반응이 없으면 유저가 한 번 더 누르고, 그때마다
+                  // 제휴 클릭이 중복 기록된다. 눌린 상태를 눈에 보이게 한다.
                   haptics.tap();
-                  openCoupangOutbound();
+                  setOutboundBusy(true);
+                  openCoupangOutbound().finally(() => setOutboundBusy(false));
                 }}
               >
                 <Text style={styles.balanceLinkText}>쿠팡에서 적립 ›</Text>

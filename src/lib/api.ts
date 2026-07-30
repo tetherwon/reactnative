@@ -136,6 +136,27 @@ export async function apiFetchSWR<T>(
   }
 }
 
+/** 캐시된 응답을 그 자리에서 고쳐 쓴다. 캐시가 없으면 아무것도 하지 않는다.
+ *
+ * 티켓 소모·포인트 차감처럼 화면 state만 낙관적으로 바꾸는 경우, 캐시는 네트워크
+ * 응답으로만 쓰이므로 '소모 전' 값이 그대로 남는다. 캐시를 나이와 무관하게 항상
+ * 먼저 그리게 바꾼 뒤로는 그 낡은 값이 다음 진입 때 되살아난다 — 스핀 직후 다시
+ * 들어가면 이미 쓴 티켓이 남아 있는 것처럼 보이고(서버가 거부하긴 하지만),
+ * 오프라인이면 네트워크 갱신이 없어 무기한 지속된다.
+ * 그래서 잔액을 바꾸는 쪽에서 캐시도 같이 맞춰준다. */
+export async function patchSwrCache<T>(path: string, patch: (prev: T) => T): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(SWR_PREFIX + path);
+    if (!raw) return;
+    const obj = JSON.parse(raw) as { ts: number; data: T };
+    if (!obj || obj.data === undefined) return;
+    await AsyncStorage.setItem(
+      SWR_PREFIX + path,
+      JSON.stringify({ ts: obj.ts, data: patch(obj.data) }),
+    );
+  } catch {}
+}
+
 // ── 원격 설정 (/api/app-config) ──────────────────────────────────────────────
 // native_screens: 서버가 지정한 "네이티브로 렌더할 화면" 목록. 네이티브 화면에서
 // 사고가 나면 서버 관리자 API로 목록에서 빼서 스토어 재배포 없이 웹뷰로 롤백한다.
