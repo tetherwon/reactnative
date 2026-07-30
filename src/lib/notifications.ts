@@ -106,6 +106,13 @@ export async function getFcmDeviceTokenAsync(): Promise<string | null> {
 }
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  // iOS는 아직 푸시가 end-to-end로 연결돼 있지 않다. getFcmDeviceTokenAsync가
+  // 안드로이드가 아니면 null을 돌려주고(서버는 raw FCM 토큰만 받는다) APNs
+  // 파이프라인도 없어서, 권한을 허용받아도 알림이 한 통도 가지 않는다.
+  // 그런데 이 함수는 첫 콜드스타트에 무조건 불려서 iOS 유저는 앱을 보기도 전에
+  // 권한 팝업부터 만난다 — 허용해도 아무것도 안 오는 최악의 조합이라, APNs를
+  // 붙이기 전까지는 묻지 않는다. (붙일 때 이 가드부터 걷어낼 것)
+  if (Platform.OS !== 'android') return null;
   if (!(await ensurePermissionAsync())) return null;
 
   const projectId = resolveProjectId();

@@ -599,6 +599,10 @@ export default function HomeScreen() {
             haptics.error();
           }}
           onContentProcessDidTerminate={() => webViewRef.current?.reload()}
+          // iOS엔 하드웨어 뒤로가기가 없고 BackHandler도 안드로이드 전용이라,
+          // 이게 없으면 탭 5개보다 깊이 들어간 유저는 앱을 죽이는 것 말고는
+          // 나올 방법이 없다(웹 셸에도 공통 뒤로가기가 없다).
+          allowsBackForwardNavigationGestures
           domStorageEnabled
           javaScriptEnabled
           allowsInlineMediaPlayback

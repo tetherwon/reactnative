@@ -44,13 +44,27 @@ if (!KAKAO_NATIVE_APP_KEY) {
 // 여기에 직접 등록한다(env로 덮어쓰기 가능). 이렇게 하면 EAS 환경변수를 깜빡
 // 잊어 "Invalid application ID" 크래시로 심사 거절되던 위험이 원천 차단된다.
 //
-// ⚠️ iOS는 별도의 iOS용 AdMob 앱 ID가 필요하다. AdMob 콘솔에서 iOS 앱을 따로
-// 만들면 다른 ~접미사의 ID가 나온다. 아직 iOS 앱을 안 만들었다면 아래 iOS 값을
-// 실제 iOS 앱 ID로 바꿔야 한다(현재는 안드로이드와 동일 값 — iOS 빌드 시 교체 필요).
+// ⚠️ iOS는 별도의 iOS용 AdMob 앱 ID가 필요하다(AdMob 콘솔에서 iOS 앱을 따로
+// 만들면 다른 ~접미사의 ID가 나온다). 예전엔 안드로이드 ID를 기본값으로 두고
+// "iOS 빌드 시 교체 필요"라고만 적어놨는데, 그러면 교체를 깜빡한 채 빌드가
+// 성공해버리고 번들 ID에 등록되지 않은 앱 ID가 심겨 리워드 광고가 전부 로드
+// 실패한다(GADApplicationIdentifier 불일치는 초기화 자체를 깨뜨리기도 한다).
+// → iOS는 env로만 받고, 없으면 iOS 네이티브 빌드를 즉시 실패시킨다.
 const ADMOB_ANDROID_APP_ID =
   process.env.ADMOB_ANDROID_APP_ID || 'ca-app-pub-1856287061134936~8519744143';
-const ADMOB_IOS_APP_ID =
-  process.env.ADMOB_IOS_APP_ID || 'ca-app-pub-1856287061134936~8519744143';
+const ADMOB_IOS_APP_ID = process.env.ADMOB_IOS_APP_ID || '';
+
+// iOS 네이티브 산출물을 만드는 시점에만 막는다(안드로이드 빌드·dev 서버는 무관).
+const _isIosBuild =
+  process.env.EAS_BUILD_PLATFORM === 'ios' || process.argv.includes('run:ios');
+if (!ADMOB_IOS_APP_ID && _isIosBuild) {
+  throw new Error(
+    '[AdMob] ADMOB_IOS_APP_ID 미설정 — 안드로이드 앱 ID를 그대로 쓰면 번들 ID와 ' +
+      '맞지 않아 리워드 광고가 전부 로드 실패한다. AdMob 콘솔에서 iOS 앱을 만들고 ' +
+      "그 앱 ID(ca-app-pub-...~...)를 등록할 것:\n" +
+      '  eas env:create --environment production --name ADMOB_IOS_APP_ID --value <iOS앱ID>',
+  );
+}
 
 // Firebase(FCM) 설정 파일. 퍼블릭 레포라 파일을 커밋하지 않고 EAS의 file 타입
 // 환경변수(GOOGLE_SERVICES_JSON)로 경로를 주입한다. 미설정이면 로컬의
@@ -119,6 +133,34 @@ module.exports = {
         ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription: '상품 사진을 촬영해 업로드하기 위해 카메라를 사용합니다.',
         NSPhotoLibraryUsageDescription: '상품 사진을 선택해 업로드하기 위해 사진 보관함에 접근합니다.',
+        // 광고 SDK(AdMob·애드팝콘)가 ATT 권한을 요청하는데 이 문구가 없으면
+        // iOS가 요청 시점에 프로세스를 즉시 종료한다(심사 거절 사유이기도 하다).
+        NSUserTrackingUsageDescription:
+          '맞춤형 광고와 적립 보상 지급 확인을 위해 기기 광고 식별자를 사용합니다.',
+        // iOS의 Linking.canOpenURL은 여기 없는 스킴에 무조건 false를 돌려준다.
+        // 빠지면 결제·본인인증 앱으로 넘어가는 링크가 '아무 반응 없음'이 된다
+        // (안드로이드는 intent:// 분기로 우회하지만 iOS엔 그 경로가 없다).
+        // 카카오 3종(kakaokompassauth/storykompassauth/kakaolink)은
+        // @react-native-seoul/kakao-login 플러그인이 따로 넣으므로 여기선 생략.
+        LSApplicationQueriesSchemes: [
+          'itms-apps', // 앱스토어(미설치 앱 유도)
+          'kakaotalk', // 카카오톡
+          'kakaopay', // 카카오페이
+          'supertoss', // 토스
+          'ispmobile', // ISP/페이북
+          'kftc-bankpay', // 금융결제원 뱅크페이
+          'hdcardappcardansimclick', // 현대카드
+          'shinhan-sr-ansimclick', // 신한카드
+          'kb-acp', // KB국민카드
+          'mpocket.online.ansimclick', // 삼성카드
+          'lotteappcard', // 롯데카드
+          'cloudpay', // 하나카드
+          'nhallonepayansimclick', // NH농협카드
+          'citispay', // 씨티카드
+          'payco', // 페이코
+          'nidlogin', // 네이버
+          'coupang', // 쿠팡
+        ],
       },
     },
     android: {
