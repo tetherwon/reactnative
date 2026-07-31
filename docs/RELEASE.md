@@ -1,4 +1,9 @@
-# 플레이스토어 릴리즈 절차
+# 스토어 릴리즈 절차
+
+안드로이드(플레이스토어)와 iOS(앱스토어) 절차를 나눠 적는다.
+맨 아래 "버전/OTA 규칙"은 두 플랫폼 공통이다.
+
+# Android — 플레이스토어
 
 ## 사전 준비 (최초 1회)
 
@@ -67,7 +72,110 @@ eas submit --platform android --latest
    포스트백(`/api/adpopcorn/postback`)이 처리하므로 캠페인 완료까지 해봐야
    확인 가능 — Railway 로그에서 `adpopcorn` 검색
 
-## 버전/OTA 규칙
+# iOS — 앱스토어
+
+## 사전 준비 (최초 1회)
+
+**1) Apple Developer Program 가입** (연 $99). 승인에 1~2일 걸린다. 이게 없으면
+실기기 빌드·TestFlight·심사 제출이 전부 불가능하다.
+
+**2) EAS 환경변수** — 안드로이드와 같은 `production` 환경을 쓴다. iOS 빌드에서
+새로 등록해야 하는 값은 없지만, 아래 두 개가 **iOS에도 필요하다**:
+
+- `KAKAO_NATIVE_APP_KEY` — 없으면 app.config.js가 EAS 빌드를 즉시 실패시킨다.
+- `EXPO_PUBLIC_ADPOPCORN_APP_KEY` / `_HASH_KEY` — iOS는 Metro가 이 값을 JS
+  번들에 인라인해 `src/lib/adpopcorn.ts`의 `setAppKey()`가 직접 읽는다
+  (안드로이드처럼 매니페스트 주입이 아니다). 비면 오퍼월이 안 열린다.
+
+AdMob iOS 앱 ID(`ca-app-pub-1856287061134936~6447506732`)는 app.config.js에
+기본값으로 박혀 있어 별도 등록이 필요 없다. 안드로이드 ID와 같아지면
+빌드가 실패하도록 가드가 걸려 있다(번들 ID 불일치 → 광고 전량 로드 실패 방지).
+
+`GOOGLE_SERVICES_JSON`은 **안드로이드 전용**이다. iOS 푸시는 APNs를 쓰므로
+이 파일과 무관하다.
+
+**3) 서버(Railway, Shopping_log 레포)에 iOS 광고 단위 ID 등록**
+
+```
+ADMOB_REWARDED_AD_UNIT_ID_IOS
+ADMOB_BANNER_AD_UNIT_ID_IOS
+```
+
+AdMob 광고 단위는 플랫폼마다 다르다. `/api/app-config?platform=ios`가 이 값만
+보고, 없으면 **폴백 없이 기능을 끈다**(로드될 리 없는 광고를 계속 요청하지
+않도록). 등록을 빼먹으면 iOS에서 '광고 보고 적립'이 영영 준비중으로 남는다.
+
+**4) App Store Connect에 앱 레코드 생성** — 업로드보다 **먼저** 해야 한다.
+앱 레코드가 없으면 `eas submit`이 실패한다.
+
+appstoreconnect.apple.com → 앱 → **+** → 신규 앱:
+- 플랫폼: iOS
+- 번들 ID: **`store.shoppinglog.app`**
+- SKU: 아무 문자열이면 된다 (`shoppinglog`)
+
+서명 인증서·프로비저닝 프로파일은 EAS가 자동으로 만들어 관리하므로 직접
+준비할 것이 없다. 첫 빌드에서 Apple 계정 로그인만 물어본다.
+
+## 빌드 & 업로드 (매번)
+
+```bash
+git checkout main && git pull origin main
+npm ci
+
+# IPA 빌드 — production 프로필 = buildNumber 자동 증가 (appVersionSource: remote)
+eas build --platform ios --profile production
+
+# App Store Connect 업로드
+eas submit --platform ios --latest
+```
+
+- 빌드는 15~30분 걸린다.
+- `eas.json`의 `submit.production`이 비어 있어 Apple ID·대상 앱을 대화형으로
+  물어본다. 앱 암호(app-specific password)를 요구하면 appleid.apple.com →
+  로그인 및 보안 → 앱 암호에서 발급한다.
+- 업로드 후 애플이 바이너리를 처리하는 데 **10~30분**. 그 전에는 TestFlight에
+  빌드가 보이지 않는다(업로드 실패가 아니다).
+
+## 심사 제출 전 체크리스트
+
+빌드가 올라가도 아래가 안 채워지면 제출 버튼이 활성화되지 않는다.
+
+| 항목 | 상태 |
+|------|------|
+| 수출 규정 (`ITSAppUsesNonExemptEncryption: false`) | app.config.js에 있음 — 자동 통과 |
+| ATT 사용 목적 문구 (`NSUserTrackingUsageDescription`) | app.config.js에 있음 |
+| 카메라·사진 권한 문구 | app.config.js에 있음 |
+| 개인정보 처리방침 URL | `docs/privacy-policy.html`을 배포한 **공개 URL** 필요 |
+| **앱 개인정보 보호**(데이터 수집 신고) | 콘솔에서 직접 입력 — 아래 참고 |
+| 스크린샷 (6.9" 또는 6.7" 아이폰) | 직접 준비 |
+| iPad 스크린샷 | **불필요** — `supportsTablet: false` |
+
+**앱 개인정보 보호가 가장 많이 걸리는 항목이다.** AdMob·애드팝콘이 IDFA를
+사용하므로 "데이터를 사용하여 사용자를 추적함"에 **식별자 → 기기 ID**를 반드시
+체크해야 한다. 실제 동작과 신고 내용이 다르면 거절된다. ATT 권한 문구는 이미
+들어가 있으므로 신고 내용만 맞추면 된다.
+
+`supportsTablet: false`인 이유: 콘텐츠가 max-width 640px 모바일 웹이라 iPad
+전체 화면에서는 양옆이 크게 비어 가이드라인 4.2(Minimum Functionality)로
+거절되기 쉽다. false면 iPad에서 아이폰 호환 모드로 실행돼 레이아웃이 깨지지
+않고 심사 대상 기기도 아이폰으로 좁혀진다. 태블릿 레이아웃을 실제로 대응하게
+되면 true로 되돌린다.
+
+## 릴리즈 후 확인 (TestFlight)
+
+1. **앱 잠금(`AppLockGate`) 부터 확인한다.** iOS 전용 경로라 실기기 검증
+   이력이 없고, 앱 전체를 감싸고 있어 여기서 막히면 잠금 화면에서 아무 데도
+   갈 수 없다. 설치 직후 가장 먼저 볼 것.
+2. 카카오 로그인 — 카카오톡이 뜨는지(앱투앱). 아이디/비번 화면으로 빠지면
+   `KAKAO_NATIVE_APP_KEY` 누락이거나 콘솔 번들 ID 미등록이다.
+3. 캐시백 버튼 → 외부 쇼핑몰이 **시스템 브라우저**로 열리는지
+   (웹뷰 안에서 열리면 전환 추적이 깨진다).
+4. 결제·본인인증 앱 전환 — `LSApplicationQueriesSchemes`에 등록한 스킴이
+   실제로 동작하는지. 아무 반응이 없으면 스킴 누락이다.
+5. 충전소 → 리워드 광고 로드 및 시청 후 잔액 증가, 오퍼월 카드 열림.
+6. 화면 엣지 스와이프 뒤로가기.
+
+# 버전/OTA 규칙 (공통)
 
 - `runtimeVersion.policy: appVersion` — OTA(JS) 업데이트는 **같은
   app.config.js `version`으로 빌드된 바이너리에만** 배포된다.
@@ -77,3 +185,5 @@ eas submit --platform android --latest
   반드시 `version`을 올리고 새로 빌드해서 스토어에 올려야 한다.**
   버전을 안 올리면 네이티브 모듈이 없는 기존 바이너리가 새 JS를 OTA로
   받아 크래시할 수 있다.
+- 안드로이드·iOS는 `version`을 공유한다. 한쪽만 네이티브 변경이 있어도
+  version을 올리면 양쪽 다 새 빌드가 필요해진다(OTA 대상이 갈리므로).
