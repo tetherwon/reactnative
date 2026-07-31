@@ -49,20 +49,21 @@ if (!KAKAO_NATIVE_APP_KEY) {
 // "iOS 빌드 시 교체 필요"라고만 적어놨는데, 그러면 교체를 깜빡한 채 빌드가
 // 성공해버리고 번들 ID에 등록되지 않은 앱 ID가 심겨 리워드 광고가 전부 로드
 // 실패한다(GADApplicationIdentifier 불일치는 초기화 자체를 깨뜨리기도 한다).
-// → iOS는 env로만 받고, 없으면 iOS 네이티브 빌드를 즉시 실패시킨다.
+// 안드로이드와 마찬가지로 실제 ID를 여기 직접 둔다(env로 덮어쓰기 가능).
+// 접미사(~뒤)가 서로 달라야 정상 — 같다면 iOS 앱을 아직 안 만든 것이다.
 const ADMOB_ANDROID_APP_ID =
   process.env.ADMOB_ANDROID_APP_ID || 'ca-app-pub-1856287061134936~8519744143';
-const ADMOB_IOS_APP_ID = process.env.ADMOB_IOS_APP_ID || '';
+const ADMOB_IOS_APP_ID =
+  process.env.ADMOB_IOS_APP_ID || 'ca-app-pub-1856287061134936~6447506732';
 
-// iOS 네이티브 산출물을 만드는 시점에만 막는다(안드로이드 빌드·dev 서버는 무관).
+// 두 값이 같으면 iOS 앱 ID를 아직 안 만든 것이다(번들 ID 불일치로 광고 전부
+// 로드 실패). iOS 네이티브 산출물을 만드는 시점에만 막는다.
 const _isIosBuild =
   process.env.EAS_BUILD_PLATFORM === 'ios' || process.argv.includes('run:ios');
-if (!ADMOB_IOS_APP_ID && _isIosBuild) {
+if (_isIosBuild && ADMOB_IOS_APP_ID === ADMOB_ANDROID_APP_ID) {
   throw new Error(
-    '[AdMob] ADMOB_IOS_APP_ID 미설정 — 안드로이드 앱 ID를 그대로 쓰면 번들 ID와 ' +
-      '맞지 않아 리워드 광고가 전부 로드 실패한다. AdMob 콘솔에서 iOS 앱을 만들고 ' +
-      "그 앱 ID(ca-app-pub-...~...)를 등록할 것:\n" +
-      '  eas env:create --environment production --name ADMOB_IOS_APP_ID --value <iOS앱ID>',
+    '[AdMob] iOS 앱 ID가 안드로이드와 동일 — 번들 ID와 맞지 않아 리워드 광고가 ' +
+      '전부 로드 실패한다. AdMob 콘솔에서 iOS 앱을 만들고 그 앱 ID를 쓸 것.',
   );
 }
 

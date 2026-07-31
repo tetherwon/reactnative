@@ -15,7 +15,7 @@ import Svg, { Line, Path, Polygon, Rect } from 'react-native-svg';
 
 import WebBottomNav from '@/components/WebBottomNav';
 import { showRewardedAd } from '@/lib/admob';
-import { apiFetch, ApiError, apiFetchSWR, BASE_URL } from '@/lib/api';
+import { apiFetch, ApiError, apiFetchSWR, APP_CONFIG_URL } from '@/lib/api';
 import { openOfferwall } from '@/lib/adpopcorn';
 import * as haptics from '@/lib/haptics';
 import { markWebStateDirty } from '@/lib/webNav';
@@ -154,7 +154,7 @@ export default function ChargeScreen() {
         if (alive && e instanceof ApiError && e.status === 401) router.back();
       });
       loadSns();
-      fetch(`${BASE_URL}/api/app-config`)
+      fetch(APP_CONFIG_URL)
         .then((r) => (r.ok ? r.json() : null))
         .then((cfg) => {
           if (!alive || !cfg) return;

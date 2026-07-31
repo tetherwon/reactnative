@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 // 하이브리드 네이티브 화면(혜택·룰렛 등)이 쓰는 서버 API 클라이언트.
 // 인증은 웹뷰 쿠키 세션을 POST /api/auth/app-token 으로 교환한 Bearer JWT
@@ -158,6 +159,10 @@ export async function patchSwrCache<T>(path: string, patch: (prev: T) => T): Pro
 }
 
 // ── 원격 설정 (/api/app-config) ──────────────────────────────────────────────
+// AdMob 광고 단위 ID는 플랫폼마다 다르다. platform을 안 보내면 서버가 안드로이드
+// 값을 주므로, iOS에서 광고가 한 번도 로드되지 않는다.
+export const APP_CONFIG_URL = `${BASE_URL}/api/app-config?platform=${Platform.OS}`;
+
 // native_screens: 서버가 지정한 "네이티브로 렌더할 화면" 목록. 네이티브 화면에서
 // 사고가 나면 서버 관리자 API로 목록에서 빼서 스토어 재배포 없이 웹뷰로 롤백한다.
 
@@ -179,7 +184,7 @@ export async function loadAppConfig(): Promise<void> {
     }
   } catch {}
   try {
-    const res = await fetch(`${BASE_URL}/api/app-config`);
+    const res = await fetch(APP_CONFIG_URL);
     if (!res.ok) return;
     const cfg = (await res.json()) as AppConfig;
     if (Array.isArray(cfg.native_screens)) {
