@@ -129,7 +129,13 @@ module.exports = {
     userInterfaceStyle: 'automatic',
     ios: {
       bundleIdentifier: 'store.shoppinglog.app',
-      supportsTablet: true,
+      // 아이폰 전용으로 제출한다(iPad 미지원). 콘텐츠가 max-width 640px 모바일
+      // 웹이라 iPad 전체 화면에서는 양옆이 크게 비어 "아이패드에 맞게 최적화되지
+      // 않음"(가이드라인 4.2 Minimum Functionality)으로 거절되기 쉽고, iPad용
+      // 스크린샷 세트도 따로 요구된다. false면 iPad에서는 아이폰 호환 모드로
+      // 실행돼 레이아웃이 깨지지 않고, 심사 대상 기기도 아이폰으로만 좁혀진다.
+      // 나중에 태블릿 레이아웃을 실제로 대응하면 true로 되돌릴 것.
+      supportsTablet: false,
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription: '상품 사진을 촬영해 업로드하기 위해 카메라를 사용합니다.',
