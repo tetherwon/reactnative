@@ -143,17 +143,28 @@ eas submit --platform ios --latest
 | 항목 | 상태 |
 |------|------|
 | 수출 규정 (`ITSAppUsesNonExemptEncryption: false`) | app.config.js에 있음 — 자동 통과 |
-| ATT 사용 목적 문구 (`NSUserTrackingUsageDescription`) | app.config.js에 있음 |
+| ATT 문구 + 실제 권한 요청 | 문구·요청 코드 모두 있음 (1.3.3~) |
+| SKAdNetwork 식별자 | app.config.js에서 주입 (1.3.3~) |
 | 카메라·사진 권한 문구 | app.config.js에 있음 |
-| 개인정보 처리방침 URL | `docs/privacy-policy.html`을 배포한 **공개 URL** 필요 |
+| 개인정보 처리방침 URL | `https://shoppinglog.store/privacy` |
 | **앱 개인정보 보호**(데이터 수집 신고) | 콘솔에서 직접 입력 — 아래 참고 |
 | 스크린샷 (6.9" 또는 6.7" 아이폰) | 직접 준비 |
 | iPad 스크린샷 | **불필요** — `supportsTablet: false` |
+| 회원 탈퇴 경로 (5.1.1(v)) | 네이티브 프로필 → `/account-deletion` |
+| Sign in with Apple (4.8) | 구현됨 |
 
 **앱 개인정보 보호가 가장 많이 걸리는 항목이다.** AdMob·애드팝콘이 IDFA를
 사용하므로 "데이터를 사용하여 사용자를 추적함"에 **식별자 → 기기 ID**를 반드시
-체크해야 한다. 실제 동작과 신고 내용이 다르면 거절된다. ATT 권한 문구는 이미
-들어가 있으므로 신고 내용만 맞추면 된다.
+체크한다. 실제 동작과 신고 내용이 다르면 거절된다.
+
+⚠️ **이 신고와 ATT 프롬프트는 세트다.** 추적을 신고했는데 앱이 ATT 권한을
+요청하지 않으면 5.1.2로 거절된다. 1.3.3부터 `src/lib/tracking.ts`가 광고·오퍼월
+진입 직전에 요청하므로 신고해도 된다. **광고 관련 코드를 건드릴 때 이 요청
+경로를 지우지 말 것** — 지우면 신고와 어긋나 다음 심사에서 걸린다.
+
+콜드스타트가 아니라 광고를 쓰기 직전에 요청하는 이유: 앱 시작 시점에는
+`AppLockGate`가 Face ID 프롬프트를 띄워서, 시스템 다이얼로그가 겹치면 한쪽이
+조용히 무시된다.
 
 `supportsTablet: false`인 이유: 콘텐츠가 max-width 640px 모바일 웹이라 iPad
 전체 화면에서는 양옆이 크게 비어 가이드라인 4.2(Minimum Functionality)로
