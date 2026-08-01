@@ -9,6 +9,27 @@ import * as haptics from '@/lib/haptics';
 // 잠깐 알림 확인 등으로 전환했을 때 매번 인증을 요구하지 않기 위함.
 const RELOCK_AFTER_MS = 30_000;
 
+// '다시 시도해도 절대 성공할 수 없는' 인증 실패들.
+//
+// ⚠️ 가장 흔한 경우: 사용자가 Face ID 권한 팝업에서 '허용 안 함'을 누른 것
+// (iOS가 biometryNotAvailable을 돌려줘 'not_available'로 매핑된다). 이때
+// 잠금 상태를 유지하면 '잠금 해제' 버튼이 같은 실패를 반복할 뿐이라 앱이
+// 영구히 잠긴다 — 재설치 말고는 복구 수단이 없다. 심사자가 권한 팝업을
+// 거부하면 앱을 아예 못 쓰므로 그대로 거절이다.
+//
+// 앱 잠금은 편의 기능이고 실제 보호는 서버 세션(JWT)이 한다. 그러니 인증이
+// 구조적으로 불가능한 상황에서는 잠그지 않고 통과시킨다(= 안드로이드와 동일).
+// 사용자가 직접 취소한 경우('user_cancel' 등)는 여기 넣지 않는다 — 재시도가
+// 가능한 정상적인 잠금 상태다.
+const UNRECOVERABLE_AUTH_ERRORS = new Set([
+  'not_available', // 생체 인증 사용 불가 (권한 거부 포함)
+  'not_enrolled', // 등록된 생체 정보 없음
+  'passcode_not_set', // 기기 암호 미설정 → 암호 폴백도 불가
+  'lockout_permanent', // 실패 누적으로 영구 잠김
+  'invalid_context',
+  'unknown',
+]);
+
 type LockState = 'checking' | 'locked' | 'unlocked';
 
 /**
@@ -32,6 +53,13 @@ export default function AppLockGate({ children }: { children: React.ReactNode })
   const backgroundedAt = useRef<number | null>(null);
   const authInFlight = useRef(false);
 
+  // 잠금을 포기하고 앱을 열어준다. biometricEnabled도 내려서 백그라운드 복귀 시
+  // 재잠금 경로까지 막는다 — 안 그러면 30초 뒤 돌아올 때마다 같은 실패를 반복한다.
+  const giveUpLock = useCallback(() => {
+    biometricEnabled.current = false;
+    setState('unlocked');
+  }, []);
+
   const authenticate = useCallback(async () => {
     if (authInFlight.current) return;
     authInFlight.current = true;
@@ -43,15 +71,19 @@ export default function AppLockGate({ children }: { children: React.ReactNode })
       if (result.success) {
         haptics.success();
         setState('unlocked');
+      } else if (UNRECOVERABLE_AUTH_ERRORS.has(result.error)) {
+        // 재시도가 무의미한 실패 — 잠금을 아예 해제하고 이후 재잠금도 하지 않는다.
+        giveUpLock();
       } else {
         setState('locked');
       }
     } catch {
-      setState('locked');
+      // 인증 API 자체가 던지면 잠금 화면에 가둘 방법밖에 없어진다. 통과시킨다.
+      giveUpLock();
     } finally {
       authInFlight.current = false;
     }
-  }, []);
+  }, [giveUpLock]);
 
   // 최초 1회: 생체 인증 사용 가능 여부 확인 후, 가능하면 잠그고 인증 시작.
   useEffect(() => {
