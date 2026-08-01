@@ -17,6 +17,8 @@
  */
 import { Platform } from 'react-native';
 
+import { ensureTrackingPermissionAsync } from '@/lib/tracking';
+
 type AdPopcornRewardModule = typeof import('react-native-adpopcorn-reward');
 
 let mod: AdPopcornRewardModule | null | undefined;
@@ -70,7 +72,17 @@ export function ensureAdpopcornListeners(onClosed: () => void) {
 export function openOfferwall(userId: string) {
   const m = getModule();
   if (!m || !userId) return;
-  ensureAppKey();
-  m.default.setUserId(userId);
-  m.default.openOfferwall();
+  const open = () => {
+    ensureAppKey();
+    m.default.setUserId(userId);
+    m.default.openOfferwall();
+  };
+  // iOS는 ATT를 먼저 받는다 — 애드팝콘의 전환(리워드) 매칭이 IDFA에 의존해서,
+  // 권한 없이 열면 식별자가 0으로 나가 포스트백이 어긋날 수 있다.
+  // 안드로이드는 종전대로 동기 실행(불필요한 지연을 만들지 않는다).
+  if (Platform.OS !== 'ios') {
+    open();
+    return;
+  }
+  void ensureTrackingPermissionAsync().then(open);
 }

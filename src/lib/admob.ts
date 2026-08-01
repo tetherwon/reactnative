@@ -11,6 +11,8 @@
  * 돌려준다 → 웹은 "광고를 불러오지 못했어요"로 처리.
  */
 
+import { ensureTrackingPermissionAsync } from '@/lib/tracking';
+
 type GoogleMobileAds = typeof import('react-native-google-mobile-ads');
 
 let ads: GoogleMobileAds | null | undefined;
@@ -40,7 +42,12 @@ export function showRewardedAd(adUnit: string, userId: string): Promise<boolean>
   if (!mod || !adUnit) return Promise.resolve(false);
 
   if (!initPromise) {
-    initPromise = mod.default().initialize().catch(() => {});
+    // ATT 요청은 반드시 initialize() 앞에 온다. GMA SDK가 초기화 시점에 IDFA를
+    // 읽어가므로 뒤에 물으면 이번 세션 광고는 전부 비개인화로 나간다.
+    // 거부해도 광고 자체는 동작하므로 결과값은 보지 않는다.
+    initPromise = ensureTrackingPermissionAsync()
+      .then(() => mod.default().initialize())
+      .catch(() => {});
   }
 
   return initPromise.then(

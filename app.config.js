@@ -67,6 +67,66 @@ if (_isIosBuild && ADMOB_IOS_APP_ID === ADMOB_ANDROID_APP_ID) {
   );
 }
 
+// SKAdNetwork 식별자 — ATT를 거부한 사용자에 대해 광고 네트워크가 설치 전환을
+// 귀속시키는 애플의 프레임워크. Info.plist에 이 목록이 없으면 광고주가 전환을
+// 추적할 수 없어 입찰이 붙지 않고 iOS eCPM이 크게 떨어진다(거절 사유는 아니다).
+// react-native-google-mobile-ads 플러그인은 skAdNetworkItems 옵션이 없으면
+// 아무것도 넣지 않으므로(undefined면 early return) 반드시 직접 넘겨야 한다.
+// 출처: node_modules/react-native-google-mobile-ads/docs/index.mdx 의 권장 목록.
+// ⚠️ 구글이 수시로 갱신하므로 SDK를 올릴 때 위 문서에서 다시 뽑아 동기화할 것.
+const ADMOB_SKADNETWORK_ITEMS = [
+  'cstr6suwn9.skadnetwork',
+  '4fzdc2evr5.skadnetwork',
+  '2fnua5tdw4.skadnetwork',
+  'ydx93a7ass.skadnetwork',
+  'p78axxw29g.skadnetwork',
+  'v72qych5uu.skadnetwork',
+  'ludvb6z3bs.skadnetwork',
+  'cp8zw746q7.skadnetwork',
+  '3sh42y64q3.skadnetwork',
+  'c6k4g5qg8m.skadnetwork',
+  's39g8k73mm.skadnetwork',
+  'wg4vff78zm.skadnetwork',
+  '3qy4746246.skadnetwork',
+  'f38h382jlk.skadnetwork',
+  'hs6bdukanm.skadnetwork',
+  'mlmmfzh3r3.skadnetwork',
+  'v4nxqhlyqp.skadnetwork',
+  'wzmmz9fp6w.skadnetwork',
+  'su67r6k2v3.skadnetwork',
+  'yclnxrl5pm.skadnetwork',
+  't38b2kh725.skadnetwork',
+  '7ug5zh24hu.skadnetwork',
+  'gta9lk7p23.skadnetwork',
+  'vutu7akeur.skadnetwork',
+  'y5ghdn5j9k.skadnetwork',
+  'v9wttpbfk9.skadnetwork',
+  'n38lu8286q.skadnetwork',
+  '47vhws6wlr.skadnetwork',
+  'kbd757ywx3.skadnetwork',
+  '9t245vhmpl.skadnetwork',
+  'a2p9lx4jpn.skadnetwork',
+  '22mmun2rn5.skadnetwork',
+  '44jx6755aq.skadnetwork',
+  'k674qkevps.skadnetwork',
+  '4468km3ulz.skadnetwork',
+  '2u9pt9hc89.skadnetwork',
+  '8s468mfl3y.skadnetwork',
+  'klf5c3l5u5.skadnetwork',
+  'ppxm28t8ap.skadnetwork',
+  'kbmxgpxpgc.skadnetwork',
+  'uw77j35x4d.skadnetwork',
+  '578prtvx9j.skadnetwork',
+  '4dzt52r2t5.skadnetwork',
+  'tl55sbb4fm.skadnetwork',
+  'c3frkrj4fj.skadnetwork',
+  'e5fvkxwrpn.skadnetwork',
+  '8c4e2ghe7u.skadnetwork',
+  '3rd42ekr43.skadnetwork',
+  '97r2b46745.skadnetwork',
+  '3qcr597p9d.skadnetwork',
+];
+
 // Firebase(FCM) 설정 파일. 퍼블릭 레포라 파일을 커밋하지 않고 EAS의 file 타입
 // 환경변수(GOOGLE_SERVICES_JSON)로 경로를 주입한다. 미설정이면 로컬의
 // google-services.json을 쓰고, 그것도 없으면 FCM 없이 빌드된다(네이티브 푸시 미동작).
@@ -111,8 +171,9 @@ module.exports = {
     // 1.3.1: 애드팝콘 매니페스트 앱키 이름 수정, 1.3.2: 카카오톡 패키지 가시성
     // <queries> 선언 추가 — 콘솔 키 해시를 다 맞게 등록해도 이게 없으면
     // Android 11+에서 카카오톡 설치 여부를 못 봐 항상 웹뷰 로그인으로 폴백함.
+    // 1.3.3: expo-tracking-transparency(ATT) 추가 + SKAdNetwork 식별자 주입.
     // 전부 네이티브 매니페스트 변경이라 새 빌드 필수)
-    version: '1.3.2',
+    version: '1.3.3',
     runtimeVersion: {
       policy: 'appVersion',
     },
@@ -254,7 +315,11 @@ module.exports = {
       ],
       [
         'react-native-google-mobile-ads',
-        { androidAppId: ADMOB_ANDROID_APP_ID, iosAppId: ADMOB_IOS_APP_ID },
+        {
+          androidAppId: ADMOB_ANDROID_APP_ID,
+          iosAppId: ADMOB_IOS_APP_ID,
+          skAdNetworkItems: ADMOB_SKADNETWORK_ITEMS,
+        },
       ],
       [
         './plugins/withAdpopcorn',
