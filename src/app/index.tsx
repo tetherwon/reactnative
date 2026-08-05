@@ -49,6 +49,14 @@ import {
 
 const HOME_URL = APP_ORIGIN;
 
+// 웹은 회원 PK를 숫자로 보낼 수 있다(JSON.stringify({userId: 123})).
+// 문자열만 받으면 조용히 빈 값이 돼 광고·오퍼월이 "눌러도 무반응"이 된다.
+function toIdString(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
+}
+
 // 구글 로그인 완료 후 백엔드(app/routes/auth.py 의 APP_AUTH_REDIRECT)가
 // 돌려보내는 딥링크 스킴. app.config.js 의 scheme("webview")과 일치해야
 // 하고, 백엔드 환경변수 APP_AUTH_REDIRECT 도 이 값으로 맞춰야 한다
@@ -338,7 +346,7 @@ export default function HomeScreen() {
 
       if (data.type === 'admob:showRewarded') {
         const adUnit = typeof data.adUnit === 'string' ? data.adUnit : '';
-        const userId = typeof data.userId === 'string' ? data.userId : '';
+        const userId = toIdString(data.userId);
         showRewardedAd(adUnit, userId).then((rewarded) => {
           injectIntoApp(`window.SLNative&&window.SLNative.onAdmobResult(${rewarded});`);
         });
@@ -346,8 +354,12 @@ export default function HomeScreen() {
       }
 
       if (data.type === 'adpopcorn:openOfferwall') {
-        const userId = typeof data.userId === 'string' ? data.userId : '';
-        openAdpopcornOfferwall(userId);
+        const opened = openAdpopcornOfferwall(toIdString(data.userId));
+        // 오퍼월을 못 열었으면 웹이 대기 상태에 갇히지 않도록 닫힘 콜백을
+        // 바로 돌려준다(잔액 갱신 로직을 그대로 태워 UI가 원상복구된다).
+        if (!opened) {
+          injectIntoApp('window.SLNative&&window.SLNative.onAdpopcornClosed();');
+        }
         return;
       }
 

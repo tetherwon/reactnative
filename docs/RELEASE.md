@@ -101,12 +101,47 @@ eas submit --platform ios --latest
    포스트백(`/api/adpopcorn/postback`)이 처리하므로 캠페인 완료까지 해봐야
    확인 가능 — Railway 로그에서 `adpopcorn` 검색
 
+## 오퍼월이 안 열릴 때 (안드로이드)
+
+애드팝콘은 실패해도 크래시를 내지 않고 "눌러도 아무 반응 없음"이 된다.
+네이티브 모듈이 단계마다 로그를 찍으므로 실기기를 USB로 연결해 확인한다.
+
+```bash
+adb logcat -c && adb logcat | grep -Ei "RNAdPopcornRewardModule|adpopcorn|igaworks"
+```
+
+- **`openOfferwall` 로그조차 안 뜬다** → JS 가 네이티브까지 못 갔다.
+  웹이 보낸 `userId` 가 비었거나(문자열/숫자 아님), 이 바이너리에 SDK 가 없다.
+- **`openOfferwall` 은 뜨는데 화면이 안 뜬다** → 네이티브 SDK 단계 문제.
+  대부분 **앱키 미설정**이다. 아래로 확인한다:
+
+```bash
+# 설치된 APK 의 매니페스트에 키가 실제로 박혔는지 (빈 값이면 이게 원인)
+adb shell dumpsys package store.shoppinglog.app | grep -i adpopcorn
+```
+
+키가 비어 있다면 `EXPO_PUBLIC_ADPOPCORN_APP_KEY` / `HASH_KEY` 가 빌드에
+주입되지 않은 것이다. 순서대로 확인:
+
+1. `eas env:list --environment production` — 값이 등록돼 있는가
+2. `eas.json` 의 `build.<프로필>.environment` 가 그 environment 와 같은가
+   (**이 필드가 없으면 EAS 가 환경변수를 안 넣어줄 수 있다** — AdMob 앱 ID를
+   app.config.js 에 직접 박게 된 것도 같은 이유였다)
+3. 빌드 로그에 `⚠️ EXPO_PUBLIC_ADPOPCORN_APP_KEY / HASH_KEY 가 비어 있습니다`
+   경고가 있는지 (app.config.js 가 빌드 시 찍는다)
+
+`adb` 없이 보려면 EAS 빌드 로그의 "Run expo prebuild" 단계에서 위 경고를 찾는다.
+
 ## 버전/OTA 규칙
 
 - `runtimeVersion.policy: appVersion` — OTA(JS) 업데이트는 **같은
   app.config.js `version`으로 빌드된 바이너리에만** 배포된다.
 - main 푸시 → GitHub Actions가 자동으로 `eas update --branch production`
   실행 (JS/이미지 변경만 OTA로 나감).
+- **`eas update` 에도 `--environment production` 이 필요하다.** `EXPO_PUBLIC_*`
+  값은 Metro 가 번들에 인라인하므로, 환경변수 없이 OTA 를 내보내면 그 값을 쓰는
+  코드(iOS 애드팝콘 `setAppKey`)가 빈 문자열을 받아 조용히 멈춘다. 워크플로에
+  이미 반영돼 있으니 수동으로 `eas update` 를 돌릴 때도 빼먹지 말 것.
 - **네이티브 변경(새 패키지, app.config.js의 plugins/android/ios 수정) 시엔
   반드시 `version`을 올리고 새로 빌드해서 스토어에 올려야 한다.**
   버전을 안 올리면 네이티브 모듈이 없는 기존 바이너리가 새 JS를 OTA로

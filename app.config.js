@@ -51,6 +51,23 @@ const GOOGLE_SERVICES_JSON =
 const ADPOPCORN_APP_KEY = process.env.EXPO_PUBLIC_ADPOPCORN_APP_KEY || '';
 const ADPOPCORN_HASH_KEY = process.env.EXPO_PUBLIC_ADPOPCORN_HASH_KEY || '';
 
+// 키가 비면 오퍼월은 "아무 반응 없음"으로 조용히 실패한다 — 크래시가 없어서
+// 빌드가 다 끝나고 실기기에서야 알게 된다. 빌드 로그에 크게 남긴다.
+// (EAS 에서 값이 안 들어오면 eas.json 의 build.<profile>.environment 가
+//  키를 등록한 environment 와 맞는지부터 확인할 것 — docs/RELEASE.md)
+if (process.env.EAS_BUILD_PLATFORM && !(ADPOPCORN_APP_KEY && ADPOPCORN_HASH_KEY)) {
+  console.warn(
+    '\n' +
+      '='.repeat(72) +
+      '\n⚠️  EXPO_PUBLIC_ADPOPCORN_APP_KEY / HASH_KEY 가 비어 있습니다.\n' +
+      '   이 빌드에서는 오퍼월이 열리지 않습니다(크래시는 없음).\n' +
+      '   확인: eas env:list --environment production\n' +
+      '   그래도 비어 있으면 eas.json 의 environment 설정을 확인하세요.\n' +
+      '='.repeat(72) +
+      '\n',
+  );
+}
+
 module.exports = {
   expo: {
     name: '쇼핑로그',
@@ -151,6 +168,11 @@ module.exports = {
               '-keep class com.igaworks.** { *; }',
               '-keep class com.adpopcorn.** { *; }',
               '-dontwarn com.igaworks.**',
+              '# 애드팝콘이 기기 식별·설치 추적에 리플렉션으로 쓰는 구글 라이브러리.',
+              '# 없으면 오퍼월이 캠페인 목록을 못 받아 빈 화면이 되거나 아예 안 열린다.',
+              '-keep class com.android.installreferrer.** { *; }',
+              '-keep public class com.google.android.gms.ads.identifier.** { public *; }',
+              '-dontwarn com.android.installreferrer.**',
               '# JavascriptInterface(웹뷰 브리지) 메서드 보존',
               '-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }',
             ].join('\n'),

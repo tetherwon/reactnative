@@ -30,7 +30,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # --environment production 이 없으면 EAS 서버의 환경변수가 주입되지 않는다.
+      # EXPO_PUBLIC_* 값은 Metro 가 번들에 인라인하므로, 빠진 채로 OTA 가 나가면
+      # 그 값을 쓰는 코드(iOS 애드팝콘 setAppKey)가 빈 문자열을 받아 동작을 멈춘다.
       - name: Publish OTA update
         env:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: eas update --branch production --message "$COMMIT_MESSAGE" --non-interactive
+        run: |
+          eas update --branch production --environment production \
+            --message "$COMMIT_MESSAGE" --non-interactive

@@ -15,7 +15,7 @@
  * admob.ts와 동일하게, 모듈이 없는 바이너리(구버전 앱)에서 import 시점에
  * 죽지 않도록 require를 try/catch로 감싼다.
  */
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
 type AdPopcornRewardModule = typeof import('react-native-adpopcorn-reward');
 
@@ -23,11 +23,28 @@ let mod: AdPopcornRewardModule | null | undefined;
 
 function getModule(): AdPopcornRewardModule | null {
   if (mod === undefined) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      mod = require('react-native-adpopcorn-reward') as AdPopcornRewardModule;
-    } catch {
+    // require 실패만으로는 부족하다. 이 패키지는 최상위에서
+    // `const {RNAdPopcornRewardModule} = NativeModules` 만 하고 null 체크를
+    // 하지 않는데, 안드로이드의 NativeEventEmitter 는 null 인자를 허용하므로
+    // 네이티브 모듈이 없어도 require 는 조용히 성공한다. 그 상태로 두면
+    // 나중에 setUserId 호출에서 TypeError 로 터진다(오퍼월은 안 열리고).
+    // 그래서 네이티브 등록 여부를 직접 확인한다.
+    if (!NativeModules.RNAdPopcornRewardModule) {
+      if (__DEV__) {
+        console.warn(
+          '[adpopcorn] 네이티브 모듈(RNAdPopcornRewardModule)이 없습니다. ' +
+            '이 바이너리에는 SDK가 포함되지 않았습니다 — 새로 빌드해야 합니다.',
+        );
+      }
       mod = null;
+    } else {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        mod = require('react-native-adpopcorn-reward') as AdPopcornRewardModule;
+      } catch (e) {
+        if (__DEV__) console.warn('[adpopcorn] 모듈 로드 실패:', e);
+        mod = null;
+      }
     }
   }
   return mod;
@@ -65,12 +82,26 @@ export function ensureAdpopcornListeners(onClosed: () => void) {
 }
 
 /**
- * 유저식별값을 설정하고 오퍼월을 연다. 모듈이 없으면(구버전 바이너리) 조용히 무시.
+ * 유저식별값을 설정하고 오퍼월을 연다.
+ *
+ * 실패해도 앱은 죽지 않지만, 예전엔 어디서 막혔는지 알 방법이 전혀 없었다
+ * ("눌러도 아무 일도 안 일어남"). 어느 단계에서 멈췄는지 로그로 남긴다.
+ *
+ * @returns 네이티브 호출까지 도달했으면 true (오퍼월 UI가 실제로 떴는지는
+ *          네이티브 SDK 소관이라 여기서 알 수 없다 — 앱키 미설정/액티비티
+ *          없음이면 SDK 가 조용히 무시한다)
  */
-export function openOfferwall(userId: string) {
+export function openOfferwall(userId: string): boolean {
   const m = getModule();
-  if (!m || !userId) return;
+  if (!m) return false;
+  if (!userId) {
+    if (__DEV__) {
+      console.warn('[adpopcorn] userId 가 비어 오퍼월을 열지 않습니다. 웹의 메시지 페이로드 확인 필요.');
+    }
+    return false;
+  }
   ensureAppKey();
   m.default.setUserId(userId);
   m.default.openOfferwall();
+  return true;
 }
