@@ -73,10 +73,15 @@ module.exports = {
     name: '쇼핑로그',
     slug: 'webview',
     owner: 'shoppinglog',
-    // 1.2.0: 애드팝콘 오퍼월 네이티브 모듈 추가. runtimeVersion(appVersion 정책)이
-    // 갈리므로 이 버전의 JS(OTA)는 1.2.0 바이너리에만 배포된다 — 네이티브
-    // 모듈이 없는 구버전 앱이 이 코드를 받아 죽는 일을 막는다.
-    version: '1.2.0',
+    // 1.3.0: iOS 첫 출시. 안드로이드는 오퍼월 앱키 주입 경로 수정(EAS environment)
+    // + R8 keep 규칙 보강, 양 플랫폼 공통으로 웹뷰 브리지 오리진 가드.
+    // 1.2.0: 애드팝콘 오퍼월 네이티브 모듈 추가.
+    //
+    // runtimeVersion(appVersion 정책)이 이 값에서 갈리므로, 이 버전의 JS(OTA)는
+    // 같은 version 으로 빌드된 바이너리에만 배포된다 — 네이티브 모듈/설정이 다른
+    // 구버전 앱이 새 JS를 받아 오동작하는 일을 막는다.
+    // ⚠️ plugins/ios/android 블록이나 네이티브 의존성을 건드렸으면 반드시 올릴 것.
+    version: '1.3.0',
     runtimeVersion: {
       policy: 'appVersion',
     },
