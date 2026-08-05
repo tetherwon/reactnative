@@ -1,10 +1,16 @@
 import { Linking, Platform } from 'react-native';
 
+// 자사 웹의 오리진. 네이티브 브리지(postMessage)와 로그인 토큰 주입은
+// 반드시 이 오리진에서만 허용한다 — 아래 isAppOrigin 참고.
+export const APP_ORIGIN = 'https://shoppinglog.store';
+
 // 웹/JS 관련 URL 은 전부 웹뷰가 직접 처리한다.
-// javascript:/file: 까지 포함해야 JS로 동작하는 버튼·탭·링크가 막히지 않는다.
+// javascript: 까지 포함해야 JS로 동작하는 버튼·탭·링크(<a href="javascript:...">)가
+// 막히지 않는다. file: 은 제외 — 웹 페이지가 최상위로 이동할 이유가 없고,
+// 허용하면 로컬 파일을 웹뷰 오리진으로 끌어올 수 있다.
 // 그 외(intent://, tel:, mailto:, kakaotalk:// 등 진짜 앱 스킴)만 외부로 넘긴다.
 export function isWebViewNavigable(url: string): boolean {
-  return /^(https?:|about:|blob:|data:|javascript:|file:)/i.test(url);
+  return /^(https?:|about:|blob:|data:|javascript:)/i.test(url);
 }
 
 // 앱 웹뷰 안에서 열어도 되는 "신뢰 도메인" 목록.
@@ -38,6 +44,40 @@ export function isTrustedHost(url: string): boolean {
   const host = getHost(url);
   if (!host) return false;
   return TRUSTED_HOSTS.some((d) => host === d || host.endsWith('.' + d));
+}
+
+/**
+ * 정확히 자사 오리진(https://shoppinglog.store)인지 판단.
+ *
+ * isTrustedHost 와 달리 서브도메인·타사 도메인을 일절 허용하지 않는다.
+ * TRUSTED_HOSTS 에는 결제/로그인 때문에 google.com·naver.com·daum.net 처럼
+ * 넓은 도메인이 들어 있고, 그 하위에는 sites.google.com·blog.naver.com 처럼
+ * 남이 HTML/JS를 올릴 수 있는 호스트가 있다. 그런 페이지가 웹뷰에 뜬 상태에서
+ * 네이티브 브리지(카카오 로그인 토큰·FCM 토큰·보상형 광고·오퍼월)를 쓰거나
+ * 로그인 토큰을 넘겨받으면 안 되므로, 그 둘은 이 함수로만 게이트한다.
+ */
+export function isAppOrigin(url: string): boolean {
+  return getHost(url) === 'shoppinglog.store' && /^https:/i.test(url);
+}
+
+/**
+ * 앱이 "코드로" 웹뷰를 이동시킬 때(푸시 알림 페이로드 등) 쓸 주소를 검증·정규화한다.
+ *
+ * 사용자가 페이지 안에서 누른 링크와 달리, 이 경로의 URL 은 앱 밖에서 들어온다.
+ * javascript:/data: 를 그대로 넘기면 자사 오리진에서 임의 스크립트가 실행돼
+ * localStorage 의 로그인 토큰(sl_token)까지 읽힌다.
+ *
+ * - "/mypage" 같은 절대경로는 자사 오리진 기준으로 풀어준다(기존 동작 유지).
+ * - "//evil.com" 은 프로토콜 상대 주소라 타사로 나가므로 거른다.
+ * - 그 외에는 https + 신뢰 도메인만 통과.
+ *
+ * @returns 웹뷰에 넘겨도 되는 절대 URL, 아니면 null
+ */
+export function resolveNavigationTarget(url: string): string | null {
+  if (url.startsWith('/')) {
+    return url.startsWith('//') ? null : APP_ORIGIN + url;
+  }
+  return /^https:/i.test(url) && isTrustedHost(url) ? url : null;
 }
 
 // 구글은 임베디드 웹뷰 안에서의 OAuth 로그인 시도를 자체 차단한다

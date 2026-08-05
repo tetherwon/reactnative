@@ -1,4 +1,4 @@
-# 플레이스토어 릴리즈 절차
+# 스토어 릴리즈 절차 (플레이스토어 / App Store)
 
 ## 사전 준비 (최초 1회)
 
@@ -28,9 +28,8 @@ eas env:create --environment production --name EXPO_PUBLIC_ADPOPCORN_HASH_KEY \
 - **`ADMOB_ANDROID_APP_ID`는 production 빌드 필수.** GMA SDK는 매니페스트에
   유효한 앱 ID가 없으면 광고를 안 불러도 앱 시작 시 "Invalid application ID"
   크래시를 낸다 — 실제로 이 크래시로 플레이 심사에서 거절당했다("손상된 기능
-  정책: 설치되지만 로드되지 않음"). 그래서 app.config.js가 production 빌드에서
-  앱 ID가 없으면 빌드를 실패시킨다. 개발/프리뷰 빌드는 Google 공식 샘플 앱
-  ID로 대체돼 크래시 없이 동작한다(실광고는 안 나옴).
+  정책: 설치되지만 로드되지 않음"). 그래서 app.config.js에 안드로이드 앱 ID를
+  직접 박아뒀다(환경변수로 덮어쓰기 가능) — 환경변수를 깜빡해도 크래시하지 않는다.
 - `GOOGLE_SERVICES_JSON`은 없어도 빌드·실행은 되지만 네이티브 푸시가 비활성.
 - `EXPO_PUBLIC_ADPOPCORN_APP_KEY`/`HASH_KEY`가 없어도 빌드는 되지만 오퍼월
   카드가 열리지 않는다(AdMob과 달리 크래시는 없음). 서버 쪽 포스트백 검증용
@@ -41,6 +40,33 @@ eas env:create --environment production --name EXPO_PUBLIC_ADPOPCORN_HASH_KEY \
 AdMob 앱 ID 얻는 곳: AdMob 콘솔(admob.google.com) → 앱 → 쇼핑로그(안드로이드,
 package `store.shoppinglog.app`가 등록돼 있어야 함) → 앱 설정 → "앱 ID"
 (`ca-app-pub-…~…` 형식, 광고 단위 ID와 다르다 — `~`가 들어간 쪽이 앱 ID).
+
+## iOS 추가 준비 (최초 1회)
+
+```bash
+# iOS 전용 AdMob 앱 ID — 안드로이드 앱 ID를 그대로 쓰면 안 된다.
+# AdMob 콘솔 → 앱 추가 → iOS → 번들 ID store.shoppinglog.app
+# (~접미사가 안드로이드와 다른 새 ID가 나온다)
+eas env:create --environment production --name ADMOB_IOS_APP_ID \
+  --value "ca-app-pub-XXXXXXXXXXXXXXXX~ZZZZZZZZZZ" --visibility sensitive
+```
+
+- **`ADMOB_IOS_APP_ID` 없이는 iOS 빌드가 시작 단계에서 실패한다**
+  (app.config.js가 `EAS_BUILD_PLATFORM=ios` 일 때 명시적으로 에러를 던진다).
+  안드로이드 앱 ID가 실수로 IPA에 들어가면 `GADApplicationIdentifier` 가
+  번들과 매칭되지 않아 광고가 채워지지 않고 AdMob 계정이 제재될 수 있다.
+- **ATT(App Tracking Transparency)**: 광고 SDK가 IDFA 권한을 요청하는데
+  `NSUserTrackingUsageDescription` 이 Info.plist 에 없으면 iOS가 앱을 즉시
+  종료시킨다. app.config.js의 `userTrackingUsageDescription` 으로 주입된다.
+- **APNs 키**: iOS 원격 푸시는 FCM이 아니라 APNs다. `eas credentials` 로 APNs
+  키를 등록해야 `getExpoPushTokenAsync()` 가 토큰을 돌려준다. 미등록이어도
+  빌드·실행은 되지만 푸시가 안 온다(코드가 조용히 null 처리).
+- **SKAdNetwork**: 광고 기여도 측정을 하려면 Google이 공개한 SKAdNetwork ID
+  목록을 app.config.js의 `skAdNetworkItems` 에 넣어야 한다. 없어도 크래시는
+  없고 기여도 측정만 빠진다.
+- **App Store 심사**: 웹뷰 셸이라 4.2(Minimum Functionality) 지적을 받을 수
+  있다. 네이티브 기능(앱 잠금·푸시·햅틱·오프라인 화면)을 심사 노트에 적어둘 것.
+  심사원이 비행기모드로 켜보므로 ConnectionErrorView 동작을 먼저 확인한다.
 
 ## 빌드 & 업로드 (매번)
 
@@ -53,7 +79,15 @@ eas build --platform android --profile production
 
 # 업로드: 플레이 콘솔에 AAB 수동 업로드, 또는 서비스 계정이 연결돼 있으면
 eas submit --platform android --latest
+
+# iOS — IPA 빌드 후 App Store Connect 업로드
+eas build --platform ios --profile production
+eas submit --platform ios --latest
 ```
+
+> `npm ci` 는 package.json 과 package-lock.json 이 어긋나면 즉시 실패한다
+> (EAS 빌드도 `npm ci` 를 쓴다). 의존성을 추가했다면 **package-lock.json 도 반드시
+> 같이 커밋**할 것 — `npm install --package-lock-only` 로 갱신할 수 있다.
 
 ## 릴리즈 후 확인
 

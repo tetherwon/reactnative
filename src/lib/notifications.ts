@@ -30,7 +30,9 @@ const PUSH_TOKEN_ENDPOINT = '';
 
 async function sendTokenToBackend(token: string): Promise<void> {
   if (!PUSH_TOKEN_ENDPOINT) {
-    console.log('[push] (백엔드 엔드포인트 미설정) Expo push token:', token);
+    // 푸시 토큰은 그 자체로 해당 기기에 알림을 보낼 수 있는 자격증명이라
+    // 릴리즈 빌드 로그(Xcode/Console.app, logcat)에 남기지 않는다.
+    if (__DEV__) console.log('[push] (백엔드 엔드포인트 미설정) Expo push token:', token);
     return;
   }
   try {

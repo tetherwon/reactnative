@@ -64,8 +64,18 @@ export default function AppLockGate({ children }: { children: React.ReactNode })
         setState('unlocked');
         return;
       }
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      // 이 조회가 실패하면(기기/OS 이슈) 'checking' 에 영원히 머물러 잠금 화면에
+      // 갇힌다 — 재시도 버튼은 'locked' 일 때만 뜨므로 앱을 아예 못 쓴다.
+      // 앱 잠금은 부가 기능이므로 판단이 불가능하면 통과시킨다(fail-open).
+      let hasHardware = false;
+      let enrolled = false;
+      try {
+        hasHardware = await LocalAuthentication.hasHardwareAsync();
+        enrolled = await LocalAuthentication.isEnrolledAsync();
+      } catch {
+        if (!cancelled) setState('unlocked');
+        return;
+      }
       if (cancelled) return;
       if (hasHardware && enrolled) {
         biometricEnabled.current = true;

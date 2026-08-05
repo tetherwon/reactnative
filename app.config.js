@@ -7,13 +7,29 @@ const KAKAO_NATIVE_APP_KEY = process.env.KAKAO_NATIVE_APP_KEY || '';
 // 여기에 직접 등록한다(env로 덮어쓰기 가능). 이렇게 하면 EAS 환경변수를 깜빡
 // 잊어 "Invalid application ID" 크래시로 심사 거절되던 위험이 원천 차단된다.
 //
-// ⚠️ iOS는 별도의 iOS용 AdMob 앱 ID가 필요하다. AdMob 콘솔에서 iOS 앱을 따로
-// 만들면 다른 ~접미사의 ID가 나온다. 아직 iOS 앱을 안 만들었다면 아래 iOS 값을
-// 실제 iOS 앱 ID로 바꿔야 한다(현재는 안드로이드와 동일 값 — iOS 빌드 시 교체 필요).
+// ⚠️ iOS는 별도의 iOS용 AdMob 앱 ID가 필요하다. AdMob 콘솔에서 iOS 앱
+// (번들 ID store.shoppinglog.app)을 따로 만들면 다른 ~접미사의 ID가 나온다.
+// 안드로이드 앱 ID를 그대로 쓰면 GADApplicationIdentifier 가 이 번들과 매칭되지
+// 않아 광고가 채워지지 않고, AdMob 정책 위반으로 계정이 제재될 수 있다.
+// 그래서 iOS 빌드에서 ADMOB_IOS_APP_ID 가 없으면 빌드를 세워 실수로 안드로이드
+// 값이 IPA 에 들어가는 걸 막는다(절차: docs/RELEASE.md).
 const ADMOB_ANDROID_APP_ID =
   process.env.ADMOB_ANDROID_APP_ID || 'ca-app-pub-1856287061134936~8519744143';
-const ADMOB_IOS_APP_ID =
-  process.env.ADMOB_IOS_APP_ID || 'ca-app-pub-1856287061134936~8519744143';
+const ADMOB_IOS_APP_ID = process.env.ADMOB_IOS_APP_ID || '';
+
+if (process.env.EAS_BUILD_PLATFORM === 'ios' && !ADMOB_IOS_APP_ID) {
+  throw new Error(
+    'ADMOB_IOS_APP_ID 가 없습니다. AdMob 콘솔에서 iOS 앱(번들 ID store.shoppinglog.app)을 ' +
+      '만들어 앱 ID(ca-app-pub-…~…)를 받은 뒤 EAS 환경변수로 등록하세요: ' +
+      'eas env:create --environment production --name ADMOB_IOS_APP_ID --value "ca-app-pub-…~…"',
+  );
+}
+
+// iOS 광고 SDK(Google Mobile Ads, 애드팝콘)는 IDFA 를 쓰기 위해 App Tracking
+// Transparency 권한을 요청한다. Info.plist 에 이 문구가 없는데 SDK 가
+// requestTrackingAuthorization 을 호출하면 iOS 가 앱을 즉시 종료시킨다.
+const IOS_TRACKING_USAGE_DESCRIPTION =
+  '맞춤 광고를 제공하고 광고 보상 적립을 정확히 처리하기 위해 기기 식별자를 사용합니다.';
 
 // Firebase(FCM) 설정 파일. 퍼블릭 레포라 파일을 커밋하지 않고 EAS의 file 타입
 // 환경변수(GOOGLE_SERVICES_JSON)로 경로를 주입한다. 미설정이면 로컬의
@@ -143,7 +159,14 @@ module.exports = {
       ],
       [
         'react-native-google-mobile-ads',
-        { androidAppId: ADMOB_ANDROID_APP_ID, iosAppId: ADMOB_IOS_APP_ID },
+        {
+          androidAppId: ADMOB_ANDROID_APP_ID,
+          // 값이 비면 플러그인이 GADApplicationIdentifier 를 아예 안 쓴다.
+          // iOS 빌드는 위 가드에서 이미 막히므로, 여기 빈 값이 들어가는 건
+          // 안드로이드 빌드일 때뿐이라 무해하다.
+          ...(ADMOB_IOS_APP_ID ? { iosAppId: ADMOB_IOS_APP_ID } : {}),
+          userTrackingUsageDescription: IOS_TRACKING_USAGE_DESCRIPTION,
+        },
       ],
       [
         './plugins/withAdpopcorn',

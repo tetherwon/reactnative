@@ -26,11 +26,14 @@ import { showRewardedAd } from '@/lib/admob';
 import { ensureAdpopcornListeners, openOfferwall as openAdpopcornOfferwall } from '@/lib/adpopcorn';
 import { consumeOAuthPending, markOAuthPending } from '@/lib/authGate';
 import {
+  APP_ORIGIN,
+  isAppOrigin,
   isNativeOAuthStartUrl,
   isOAuthWebStartUrl,
   isTrustedHost,
   isWebViewNavigable,
   openExternalUrl,
+  resolveNavigationTarget,
 } from '@/lib/externalLinks';
 import * as haptics from '@/lib/haptics';
 import {
@@ -44,7 +47,7 @@ import {
   registerForPushNotificationsAsync,
 } from '@/lib/notifications';
 
-const HOME_URL = 'https://shoppinglog.store';
+const HOME_URL = APP_ORIGIN;
 
 // 구글 로그인 완료 후 백엔드(app/routes/auth.py 의 APP_AUTH_REDIRECT)가
 // 돌려보내는 딥링크 스킴. app.config.js 의 scheme("webview")과 일치해야
@@ -69,7 +72,17 @@ export default function HomeScreen() {
   const { isConnected } = useNetInfo();
   const isOffline = isConnected === false;
 
-  const goTo = useCallback((url: string) => {
+  // 앱이 코드로 웹뷰를 이동시키는 유일한 통로(푸시 알림 등). 여기로 들어오는
+  // URL 은 앱 밖(푸시 페이로드)에서 오므로 반드시 검증한다 — javascript:/data: 가
+  // 통과하면 자사 오리진에서 임의 스크립트가 돌아 sl_token 이 털린다.
+  // 신뢰 도메인이 아닌 http(s) 주소는 사용자가 주소창을 볼 수 있게 외부 브라우저로.
+  const goTo = useCallback((rawUrl: string) => {
+    const url = resolveNavigationTarget(rawUrl);
+    if (!url) {
+      // 신뢰 도메인이 아닌 http(s) 주소는 사용자가 주소창을 볼 수 있게 외부 브라우저로.
+      if (/^https?:/i.test(rawUrl)) openExternalUrl(rawUrl);
+      return;
+    }
     if (isLoaded.current) {
       webViewRef.current?.injectJavaScript(
         `window.location.href = ${JSON.stringify(url)}; true;`,
@@ -85,6 +98,15 @@ export default function HomeScreen() {
     webViewRef.current?.reload();
   }, []);
 
+  // window.SLNative.* 는 자사 웹이 정의한 함수다. 결제/로그인 때문에 타사
+  // 도메인이 떠 있는 동안 그대로 주입하면 FCM 토큰 같은 값을 그쪽 페이지에
+  // 넘겨주게 되므로, RN → 웹 방향 호출은 전부 이 오리진 가드를 통과시킨다.
+  const injectIntoApp = useCallback((js: string) => {
+    webViewRef.current?.injectJavaScript(
+      `(function(){if(location.origin!==${JSON.stringify(APP_ORIGIN)})return;${js}})();true;`,
+    );
+  }, []);
+
   useEffect(() => {
     registerForPushNotificationsAsync();
   }, []);
@@ -93,11 +115,9 @@ export default function HomeScreen() {
   // (RN → 웹 방향 계약: Shopping_log 레포 docs/RN_BRIDGE.md)
   useEffect(() => {
     ensureAdpopcornListeners(() => {
-      webViewRef.current?.injectJavaScript(
-        'window.SLNative&&window.SLNative.onAdpopcornClosed();true;',
-      );
+      injectIntoApp('window.SLNative&&window.SLNative.onAdpopcornClosed();');
     });
-  }, []);
+  }, [injectIntoApp]);
 
   const lastResponse = Notifications.useLastNotificationResponse();
   useEffect(() => {
@@ -126,8 +146,13 @@ export default function HomeScreen() {
     return () => sub.remove();
   }, []);
 
+  // 현재 웹뷰가 보고 있는 주소. 로그인 토큰을 어느 오리진의 localStorage 에
+  // 쓰게 되는지 판단하는 데 쓴다(applyAuthToken 참고).
+  const currentUrl = useRef(HOME_URL);
+
   const onNavigationStateChange = (navState: WebViewNavigation) => {
     canGoBack.current = navState.canGoBack;
+    if (navState.url) currentUrl.current = navState.url;
   };
 
   // 로그인 토큰을 웹뷰의 localStorage에 심고 홈으로 보낸다.
@@ -135,18 +160,32 @@ export default function HomeScreen() {
   // 웹뷰가 아직 첫 로드를 마치지 않았으면(딥링크 콜드 스타트) 보관해뒀다가
   // onLoadEnd 에서 주입한다. 같은 토큰이 두 경로(인증 세션 + 라우터 파라미터)로
   // 겹쳐 들어와도 한 번만 주입한다.
+  // ⚠️ 토큰은 "지금 웹뷰가 떠 있는 오리진"의 localStorage 에 들어간다. 결제·소셜
+  // 로그인 때문에 타사 도메인(TRUSTED_HOSTS)에 머물러 있는 채로 주입하면 로그인
+  // 토큰을 그 도메인에 넘겨주는 셈이 된다. 자사 오리진일 때만 쓰고, 아니면 홈으로
+  // 돌려보낸 뒤 onLoadEnd 에서 다시 시도한다.
   const pendingAuthToken = useRef<string | null>(null);
   const lastAppliedToken = useRef<string | null>(null);
+  const authHomeRedirectDone = useRef(false);
   const applyAuthToken = useCallback((token: string) => {
     if (lastAppliedToken.current === token) return;
-    if (!isLoaded.current) {
+    if (!isLoaded.current || !isAppOrigin(currentUrl.current)) {
       pendingAuthToken.current = token;
+      if (isLoaded.current && !authHomeRedirectDone.current) {
+        authHomeRedirectDone.current = true;
+        webViewRef.current?.injectJavaScript(
+          `window.location.href = ${JSON.stringify(HOME_URL + '/')}; true;`,
+        );
+      }
       return;
     }
     lastAppliedToken.current = token;
+    authHomeRedirectDone.current = false;
+    // 주입 시점에도 오리진을 한 번 더 본다(주입과 페이지 이동 사이의 경합 방어).
     webViewRef.current?.injectJavaScript(
-      `try{localStorage.setItem('sl_token',${JSON.stringify(token)});}catch(e){}` +
-        `window.location.href='/';true;`,
+      `(function(){if(location.origin!==${JSON.stringify(APP_ORIGIN)})return;` +
+        `try{localStorage.setItem('sl_token',${JSON.stringify(token)});}catch(e){}` +
+        `location.href='/';})();true;`,
     );
   }, []);
 
@@ -256,11 +295,11 @@ export default function HomeScreen() {
   const sendPushTokenToWeb = useCallback(async () => {
     const token = await getFcmDeviceTokenAsync();
     if (!token) return;
-    webViewRef.current?.injectJavaScript(
+    injectIntoApp(
       `window.SLNative&&window.SLNative.registerPushToken(` +
-        `${JSON.stringify(token)},${JSON.stringify(Platform.OS)});true;`,
+        `${JSON.stringify(token)},${JSON.stringify(Platform.OS)});`,
     );
-  }, []);
+  }, [injectIntoApp]);
 
   // FCM 토큰이 갱신되면 웹에 다시 등록시킨다.
   useEffect(() => {
@@ -278,6 +317,13 @@ export default function HomeScreen() {
   // - adpopcorn:openOfferwall: 오퍼월 열기 → 닫히면 SLNative.onAdpopcornClosed 호출
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
+      // ⚠️ 브리지는 자사 오리진 전용. 웹뷰에는 결제/로그인 때문에 타사 도메인도
+      // 뜨는데(TRUSTED_HOSTS 에는 sites.google.com·blog.naver.com 처럼 남이 JS를
+      // 올릴 수 있는 호스트까지 딸려 온다) 그런 페이지가 이 브리지를 쓰면
+      // 카카오 accessToken·FCM 토큰을 가져가거나, 자기 adUnit/userId 로 광고·
+      // 오퍼월 보상을 자기 앞으로 돌릴 수 있다. 오리진이 다르면 전부 무시한다.
+      if (!isAppOrigin(event.nativeEvent.url)) return;
+
       let data: { type?: string; id?: string; adUnit?: unknown; userId?: unknown };
       try {
         data = JSON.parse(event.nativeEvent.data);
@@ -294,9 +340,7 @@ export default function HomeScreen() {
         const adUnit = typeof data.adUnit === 'string' ? data.adUnit : '';
         const userId = typeof data.userId === 'string' ? data.userId : '';
         showRewardedAd(adUnit, userId).then((rewarded) => {
-          webViewRef.current?.injectJavaScript(
-            `window.SLNative&&window.SLNative.onAdmobResult(${rewarded});true;`,
-          );
+          injectIntoApp(`window.SLNative&&window.SLNative.onAdmobResult(${rewarded});`);
         });
         return;
       }
@@ -324,7 +368,7 @@ export default function HomeScreen() {
           webViewRef.current?.injectJavaScript(rejectKakaoLoginScript(id, message));
         });
     },
-    [sendPushTokenToWeb],
+    [injectIntoApp, sendPushTokenToWeb],
   );
 
   // onLoadEnd 는 로드 "실패" 시에도 불린다(onError 직후). 실패한 로드에
