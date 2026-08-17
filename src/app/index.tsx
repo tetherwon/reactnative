@@ -163,10 +163,18 @@ export default function HomeScreen() {
   // 쓰게 되는지 판단하는 데 쓴다(applyAuthToken 참고).
   const currentUrl = useRef(HOME_URL);
 
-  const onNavigationStateChange = (navState: WebViewNavigation) => {
+  // ⚠️ 아래 웹뷰 콜백들은 전부 useCallback 으로 고정한다.
+  // 안드로이드의 shouldOverrideUrlLoading 은 링크를 누를 때마다 웹뷰의 UI
+  // 스레드를 세우고 JS 스레드가 onShouldStartLoadWithRequest 에 답할 때까지
+  // 최대 250ms 를 기다린다(RNCWebViewClient.java 의
+  // SHOULD_OVERRIDE_URL_LOADING_TIMEOUT). 즉 JS 스레드가 바쁘면 그 대기 시간이
+  // 그대로 "눌렀는데 늦게 반응함"으로 보인다. 콜백이 매 렌더마다 새로 만들어지면
+  // 네이티브 웹뷰 prop 업데이트가 계속 발생해 JS 스레드를 괜히 태우므로
+  // (useNetInfo 가 연결 상태 변화마다 이 컴포넌트를 리렌더한다) 참조를 고정한다.
+  const onNavigationStateChange = useCallback((navState: WebViewNavigation) => {
     canGoBack.current = navState.canGoBack;
     if (navState.url) currentUrl.current = navState.url;
-  };
+  }, []);
 
   // 로그인 토큰을 웹뷰의 localStorage에 심고 홈으로 보낸다.
   // (Kakao 웹 폴백 로그인이 성공 시 하는 것과 동일한 방식 — auth.js 참고)
@@ -398,11 +406,11 @@ export default function HomeScreen() {
   // 불리는데, 화면은 그보다 한참 먼저 그려져 있다. 그동안 오버레이가 덮고 있으면
   // 다 그려진 페이지를 못 보고 기다리게 된다. 진행률이 충분히 올라오면 먼저 걷고,
   // onLoadEnd 는 (진행률 이벤트가 안 오는 경우를 위한) 안전망으로 남긴다.
-  const onLoadProgress = ({ nativeEvent }: WebViewProgressEvent) => {
+  const onLoadProgress = useCallback(({ nativeEvent }: WebViewProgressEvent) => {
     if (nativeEvent.progress >= FIRST_PAINT_PROGRESS) setFirstLoadDone(true);
-  };
+  }, []);
 
-  const onLoadEnd = () => {
+  const onLoadEnd = useCallback(() => {
     setFirstLoadDone(true);
     const failed = lastLoadFailed.current;
     lastLoadFailed.current = false;
@@ -422,7 +430,7 @@ export default function HomeScreen() {
         `window.location.href = ${JSON.stringify(url)}; true;`,
       );
     }
-  };
+  }, [applyAuthToken]);
 
   return (
     <View style={styles.root}>
@@ -448,7 +456,9 @@ export default function HomeScreen() {
           domStorageEnabled
           javaScriptEnabled
           allowsInlineMediaPlayback
-          // GPU 레이어로 합성해 스크롤 프레임 드랍을 줄인다.
+          // androidLayerType 은 기본값(none)을 쓴다. "hardware" 로 두면 웹뷰
+          // 전체가 GPU 텍스처 한 장으로 올라가는데, 세로로 긴 페이지에서는
+          // 웹뷰 자체의 타일 렌더링을 방해해 스크롤·터치가 오히려 더 굼떠진다.
           // cacheMode 는 LOAD_DEFAULT(서버 캐시 헤더를 그대로 따름)를 유지한다 —
           // LOAD_CACHE_ELSE_NETWORK 로 두면 만료된 캐시까지 우선 쓰는 바람에
           // 적립금·포인트 잔액이 옛날 값으로 보일 수 있다. 첫 로드 체감은
@@ -457,7 +467,6 @@ export default function HomeScreen() {
           // onOpenWindow 가 아예 안 불려서 새 창 링크(target="_blank")가 먹통이 된다.
           cacheEnabled
           cacheMode="LOAD_DEFAULT"
-          androidLayerType="hardware"
           overScrollMode="never"
         />
       </SafeAreaView>
