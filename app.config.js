@@ -73,14 +73,19 @@ module.exports = {
     name: '쇼핑로그',
     slug: 'webview',
     owner: 'shoppinglog',
-    // runtimeVersion 이 appVersion 정책이라 이 값이 곧 OTA 호환 경계다.
-    // 여기를 올리면 이전 버전 바이너리와 런타임이 갈려서, 이 버전으로 쏜
-    // OTA 는 구버전 설치본에 도달하지 않는다(반대도 마찬가지). 구버전 사용자는
-    // 스토어 업데이트를 받아야 새 JS 를 보게 된다.
+    // 1.5.0: 네이티브 변경 없음. 콜드 스타트 직렬화 제거(잠금 화면 뒤에서 웹뷰를
+    // 미리 로드) + 로딩 오버레이를 onLoadProgress 로 조기 해제 + 웹뷰 콜백 참조 고정.
+    // 1.4.0: 비트맵 메모리 절감(로딩 이미지를 표시 크기에 맞춘 배율별 에셋으로 분리)
+    // + R8 최적화 패스 실제 활성화(proguard-android-optimize.txt). 플레이 콘솔
+    // "비트맵 이미지 최적화" · "R8 최적화" 권고 대응.
+    // 1.3.0: iOS 첫 출시. 안드로이드는 오퍼월 앱키 주입 경로 수정(EAS environment)
+    // + R8 keep 규칙 보강, 양 플랫폼 공통으로 웹뷰 브리지 오리진 가드.
+    // 1.2.0: 애드팝콘 오퍼월 네이티브 모듈 추가.
     //
-    // 1.2.0: 애드팝콘 오퍼월 네이티브 모듈 추가 — 모듈이 없는 구버전 앱이 이
-    //        코드를 받아 죽는 것을 막기 위해 런타임을 갈랐다.
-    // 1.5.0: 네이티브 변경 없음. 버전 표기만 정리.
+    // runtimeVersion(appVersion 정책)이 이 값에서 갈리므로, 이 버전의 JS(OTA)는
+    // 같은 version 으로 빌드된 바이너리에만 배포된다 — 네이티브 모듈/설정이 다른
+    // 구버전 앱이 새 JS를 받아 오동작하는 일을 막는다.
+    // ⚠️ plugins/ios/android 블록이나 네이티브 의존성을 건드렸으면 반드시 올릴 것.
     version: '1.5.0',
     runtimeVersion: {
       policy: 'appVersion',
@@ -199,6 +204,10 @@ module.exports = {
         './plugins/withAdpopcorn',
         { appKey: ADPOPCORN_APP_KEY, hashKey: ADPOPCORN_HASH_KEY },
       ],
+      // R8 최적화 패스 활성화(기본 규칙 파일을 proguard-android-optimize.txt 로 교체).
+      // 플레이 콘솔 "R8 구성으로 인해 메모리 사용량이 증가하고 성능이 저하될 수
+      // 있습니다" 권고 대응 — 자세한 배경은 plugins/withProguardOptimize.js 주석.
+      './plugins/withProguardOptimize',
     ],
     experiments: {
       typedRoutes: true,

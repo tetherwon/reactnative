@@ -65,8 +65,14 @@ function toIdString(value: unknown): string {
 const APP_AUTH_REDIRECT_PREFIX = 'webview://auth';
 
 // 웹뷰 로딩 화면을 네이티브 스플래시(파란 배경 + 곰돌이)와 이어지게 하기 위해
-// 같은 아이콘을 쓴다. icon.png 배경색(#1371F9)이 로딩 배경과 같아 이음새 없음.
-const LOADING_BEAR = require('../../assets/images/icon.png');
+// 같은 그림을 쓴다. 배경색(#1371F9)이 로딩 배경과 같아 이음새 없음.
+//
+// ⚠️ 런처 아이콘용 icon.png(1024×1024)를 그대로 쓰면 안 된다. 배율 접미사가 없는
+// 에셋은 drawable-mdpi 로 들어가고, 안드로이드가 기기 배율만큼 확대해서 디코딩한다
+// — 3x 기기에서 3072×3072 = 36MB 비트맵이 잡힌다(200×200 으로 그리는데도).
+// 표시 크기(200dp)에 맞춘 배율별 에셋을 두면 각 기기가 1:1로 디코딩해 1.4MB로 줄고,
+// RN 이 알아서 mdpi/xhdpi/xxhdpi 폴더로 나눠 넣는다. @2x/@3x 파일도 함께 유지할 것.
+const LOADING_BEAR = require('../../assets/images/loading-bear.png');
 
 // 이 진행률을 넘기면 첫 화면은 이미 그려져 있다고 보고 로딩 오버레이를 걷는다.
 // 너무 낮으면 흰 화면이 비치고, 1.0 이면 onLoadEnd 와 다를 게 없다.
