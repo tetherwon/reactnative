@@ -19,6 +19,7 @@ import type {
   ShouldStartLoadRequest,
   WebViewMessageEvent,
   WebViewOpenWindowEvent,
+  WebViewProgressEvent,
 } from 'react-native-webview/lib/WebViewTypes';
 
 import ConnectionErrorView from '@/components/ConnectionErrorView';
@@ -66,6 +67,10 @@ const APP_AUTH_REDIRECT_PREFIX = 'webview://auth';
 // 웹뷰 로딩 화면을 네이티브 스플래시(파란 배경 + 곰돌이)와 이어지게 하기 위해
 // 같은 아이콘을 쓴다. icon.png 배경색(#1371F9)이 로딩 배경과 같아 이음새 없음.
 const LOADING_BEAR = require('../../assets/images/icon.png');
+
+// 이 진행률을 넘기면 첫 화면은 이미 그려져 있다고 보고 로딩 오버레이를 걷는다.
+// 너무 낮으면 흰 화면이 비치고, 1.0 이면 onLoadEnd 와 다를 게 없다.
+const FIRST_PAINT_PROGRESS = 0.75;
 
 
 export default function HomeScreen() {
@@ -387,6 +392,16 @@ export default function HomeScreen() {
   // 보관해둔 토큰/URL을 주입하면 에러 페이지에 떨어져 그대로 소실되므로,
   // 성공한 로드에서만 소비하고 실패 시엔 다음 로드까지 보관한다.
   const lastLoadFailed = useRef(false);
+
+  // 로딩 오버레이(파란 배경 + 곰돌이)를 걷는 시점.
+  // onLoadEnd 는 이미지·광고·서드파티 스크립트까지 모든 서브리소스가 끝나야
+  // 불리는데, 화면은 그보다 한참 먼저 그려져 있다. 그동안 오버레이가 덮고 있으면
+  // 다 그려진 페이지를 못 보고 기다리게 된다. 진행률이 충분히 올라오면 먼저 걷고,
+  // onLoadEnd 는 (진행률 이벤트가 안 오는 경우를 위한) 안전망으로 남긴다.
+  const onLoadProgress = ({ nativeEvent }: WebViewProgressEvent) => {
+    if (nativeEvent.progress >= FIRST_PAINT_PROGRESS) setFirstLoadDone(true);
+  };
+
   const onLoadEnd = () => {
     setFirstLoadDone(true);
     const failed = lastLoadFailed.current;
@@ -419,6 +434,7 @@ export default function HomeScreen() {
           onNavigationStateChange={onNavigationStateChange}
           onOpenWindow={onOpenWindow}
           onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+          onLoadProgress={onLoadProgress}
           onLoadEnd={onLoadEnd}
           onMessage={onMessage}
           injectedJavaScriptBeforeContentLoaded={KAKAO_BRIDGE_INJECTED_JS}
@@ -432,6 +448,17 @@ export default function HomeScreen() {
           domStorageEnabled
           javaScriptEnabled
           allowsInlineMediaPlayback
+          // GPU 레이어로 합성해 스크롤 프레임 드랍을 줄인다.
+          // cacheMode 는 LOAD_DEFAULT(서버 캐시 헤더를 그대로 따름)를 유지한다 —
+          // LOAD_CACHE_ELSE_NETWORK 로 두면 만료된 캐시까지 우선 쓰는 바람에
+          // 적립금·포인트 잔액이 옛날 값으로 보일 수 있다. 첫 로드 체감은
+          // 위 onLoadProgress 로 줄인다.
+          // setSupportMultipleWindows 는 건드리지 않는다 — false 로 두면 위
+          // onOpenWindow 가 아예 안 불려서 새 창 링크(target="_blank")가 먹통이 된다.
+          cacheEnabled
+          cacheMode="LOAD_DEFAULT"
+          androidLayerType="hardware"
+          overScrollMode="never"
         />
       </SafeAreaView>
       {!firstLoadDone && !loadError && (

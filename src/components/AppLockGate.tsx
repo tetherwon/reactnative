@@ -110,37 +110,49 @@ export default function AppLockGate({ children }: { children: React.ReactNode })
     return () => sub.remove();
   }, [authenticate]);
 
-  if (state === 'unlocked') {
-    return <>{children}</>;
-  }
-
-  // 'checking' / 'locked' 모두 잠금 화면을 보여준다 (콘텐츠 노출 방지).
+  // children 은 잠금 상태와 무관하게 항상 마운트하고, 잠금 화면은 그 "위에"
+  // 불투명 오버레이로 덮는다. 예전처럼 잠금이 풀린 뒤에야 children 을 렌더하면
+  // 웹뷰가 인증이 끝난 다음에야 생성돼서 [스플래시 → 생체인증 → 그제서야 페이지
+  // 요청 시작] 이 전부 직렬로 이어붙는다. 이렇게 두면 인증하는 동안 웹 페이지가
+  // 뒤에서 미리 로드돼 인증 시간이 체감 지연에서 사라진다.
+  // 오버레이가 화면 전체를 불투명하게 가리므로 콘텐츠 노출 방지는 그대로 유지되고,
+  // 앱 전환기(App Switcher) 스냅샷에도 잠금 화면이 찍힌다.
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.content}>
-        <Text style={styles.emoji}>🔒</Text>
-        <Text style={styles.title}>쇼핑로그</Text>
-        {state === 'locked' && (
-          <Pressable
-            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-            onPress={() => {
-              haptics.tap();
-              authenticate();
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="잠금 해제"
-          >
-            <Text style={styles.buttonText}>잠금 해제</Text>
-          </Pressable>
-        )}
-      </View>
-    </SafeAreaView>
+    <View style={styles.root}>
+      {children}
+      {state !== 'unlocked' && (
+        <SafeAreaView
+          style={[StyleSheet.absoluteFill, styles.container]}
+          edges={['top', 'bottom']}
+        >
+          <View style={styles.content}>
+            <Text style={styles.emoji}>🔒</Text>
+            <Text style={styles.title}>쇼핑로그</Text>
+            {state === 'locked' && (
+              <Pressable
+                style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+                onPress={() => {
+                  haptics.tap();
+                  authenticate();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="잠금 해제"
+              >
+                <Text style={styles.buttonText}>잠금 해제</Text>
+              </Pressable>
+            )}
+          </View>
+        </SafeAreaView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
+  },
+  container: {
     backgroundColor: '#208AEF',
   },
   content: {
