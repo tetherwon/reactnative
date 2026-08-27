@@ -72,7 +72,7 @@ const APP_AUTH_REDIRECT_PREFIX = 'webview://auth';
 // — 3x 기기에서 3072×3072 = 36MB 비트맵이 잡힌다(200×200 으로 그리는데도).
 // 표시 크기(200dp)에 맞춘 배율별 에셋을 두면 각 기기가 1:1로 디코딩해 1.4MB로 줄고,
 // RN 이 알아서 mdpi/xhdpi/xxhdpi 폴더로 나눠 넣는다. @2x/@3x 파일도 함께 유지할 것.
-const LOADING_BEAR = require('../../assets/images/loading-bear.png');
+const SPLASH_BEAR = require('../../assets/images/splash-bear.png');
 
 // 이 진행률을 넘기면 첫 화면은 이미 그려져 있다고 보고 로딩 오버레이를 걷는다.
 // 너무 낮으면 흰 화면이 비치고, 1.0 이면 onLoadEnd 와 다를 게 없다.
@@ -478,8 +478,9 @@ export default function HomeScreen() {
       </SafeAreaView>
       {!firstLoadDone && !loadError && (
         <View style={styles.loader} pointerEvents="none">
-          <Image source={LOADING_BEAR} style={styles.loadingBear} resizeMode="contain" />
-          <Text style={styles.loadingTagline}>쇼핑적립은 쇼핑로그</Text>
+          <Text style={styles.loadingLine1}>쇼핑 적립은,</Text>
+          <Text style={styles.loadingLine2}>Shoppinglog</Text>
+          <Image source={SPLASH_BEAR} style={styles.loadingBear} resizeMode="contain" />
         </View>
       )}
       {(loadError || isOffline) && (
@@ -511,26 +512,50 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
   },
+  // 웹 스플래시(templates/partials/_splash.html)와 같은 화면.
+  // 예전엔 곰 얼굴 + '쇼핑적립은 쇼핑로그' 한 줄이라, 웹뷰가 뜨는 순간 웹 스플래시로
+  // 바뀌면서 그림·문구·배경색(#1371F9→#3182f6)이 한꺼번에 갈아끼워져 깜빡였다.
+  // 좌표는 웹과 같은 시안(393×852) 기준 %라 기기 높이가 달라도 같이 움직인다.
   loader: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    // 네이티브 스플래시와 동일한 파란 배경 → 스플래시→로딩 전환이 이어짐
-    backgroundColor: '#1371F9',
+    overflow: 'hidden',
+    backgroundColor: '#3182f6',
   },
-  loadingBear: {
-    width: 200,
-    height: 200,
-  },
-  loadingTagline: {
-    marginTop: 6,
+  loadingLine1: {
+    position: 'absolute',
+    top: '24.18%',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
     color: '#ffffff',
-    fontSize: 22,
+    fontSize: 24,
+    lineHeight: 24,
+    letterSpacing: -0.48,
+  },
+  loadingLine2: {
+    position: 'absolute',
+    top: '29.23%',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    color: '#ffffff',
+    fontSize: 36,
+    lineHeight: 36,
+    // 웹은 Poppins를 지정하지만 실제로 로드하는 폰트가 없어 Pretendard로 떨어진다.
+    // 앱에 임베드된 Pretendard-Black을 쓰면 웹에서 보이는 것과 같은 글자가 된다.
     fontFamily: 'Pretendard-Black',
-    letterSpacing: -0.3,
+  },
+  // 시안 250×453 @ (143,364). 이미지 비율(600×1087)이 이 상자와 같아
+  // resizeMode='contain'이 웹의 object-fit:contain + left top 과 같은 결과가 된다.
+  loadingBear: {
+    position: 'absolute',
+    left: '36.39%',
+    top: '42.72%',
+    width: '63.61%',
+    height: '53.17%',
   },
 });

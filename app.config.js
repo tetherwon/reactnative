@@ -86,7 +86,7 @@ module.exports = {
     // 같은 version 으로 빌드된 바이너리에만 배포된다 — 네이티브 모듈/설정이 다른
     // 구버전 앱이 새 JS를 받아 오동작하는 일을 막는다.
     // ⚠️ plugins/ios/android 블록이나 네이티브 의존성을 건드렸으면 반드시 올릴 것.
-    version: '1.5.0',
+    version: '1.5.1',
     runtimeVersion: {
       policy: 'appVersion',
     },
@@ -127,15 +127,22 @@ module.exports = {
       // config plugin 방식이라 빌드 시 포함돼 첫 화면부터 지연 없이 적용된다.
       ['expo-font', { fonts: ['./assets/fonts/Pretendard-Black.otf'] }],
       [
-        // 파란 배경(#1371F9) 가운데 곰돌이 아이콘. icon.png 코너색이 정확히
-        // #1371F9 라, 이미지 배경과 splash backgroundColor 가 일치해 이음새
-        // 없이 "파란 화면 + 중앙 곰돌이"로 보인다(런처 아이콘과도 통일).
+        // 웹 스플래시(_splash.html)와 같은 파란 배경(#3182f6) 가운데 곰돌이.
+        //
+        // 안드로이드 12+ 시스템 스플래시는 '배경색 + 가운데 아이콘'만 가능해서
+        // 웹처럼 문구·왼쪽 정렬 그림을 넣을 수 없다. 그래서 여기서는 색만 맞추고,
+        // 실제 웹 스플래시 화면은 웹뷰가 뜨기 전 JS 로딩 화면(src/app/index.tsx)이
+        // 그대로 그린다 — 시스템 스플래시 → 로딩 화면이 같은 색이라 이어져 보인다.
+        //
+        // icon.png는 배경이 #1371F9로 칠해져 있어 그대로 쓰면 새 배경색 위에
+        // 파란 사각형이 드러난다. 배경만 투명하게 뺀 splash-icon.png를 쓴다
+        // (런처 아이콘은 icon.png 그대로 — 건드리지 않는다).
         'expo-splash-screen',
         {
-          image: './assets/images/icon.png',
+          image: './assets/images/splash-icon.png',
           imageWidth: 288,
           resizeMode: 'contain',
-          backgroundColor: '#1371F9',
+          backgroundColor: '#3182f6',
         },
       ],
       [
