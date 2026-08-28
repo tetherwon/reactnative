@@ -215,6 +215,9 @@ module.exports = {
       // 플레이 콘솔 "R8 구성으로 인해 메모리 사용량이 증가하고 성능이 저하될 수
       // 있습니다" 권고 대응 — 자세한 배경은 plugins/withProguardOptimize.js 주석.
       './plugins/withProguardOptimize',
+      // 플레이 콘솔 '최적화된 리소스 축소가 사용 설정되지 않음' 경고 해소.
+      // isShrinkResources 만으로는 예전 파이프라인이 돌아서 경고가 남는다.
+      './plugins/withOptimizedResourceShrinking',
     ],
     experiments: {
       typedRoutes: true,
