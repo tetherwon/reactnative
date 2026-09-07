@@ -54,19 +54,21 @@ let appKeySet = false;
 
 // app.config.js와 동일한 EXPO_PUBLIC_ 변수 — Metro가 빌드 시 이 값을 그대로
 // JS 번들에 인라인한다(런타임에 process.env를 실제로 조회하는 게 아니다).
-const APP_KEY = process.env.EXPO_PUBLIC_ADPOPCORN_APP_KEY || '';
-const HASH_KEY = process.env.EXPO_PUBLIC_ADPOPCORN_HASH_KEY || '';
+// Android 값으로 폴백하지 않는다. iOS 매체는 별도 앱키/해시키를 사용한다.
+const APP_KEY = process.env.EXPO_PUBLIC_ADPOPCORN_APP_KEY_IOS || '';
+const HASH_KEY = process.env.EXPO_PUBLIC_ADPOPCORN_HASH_KEY_IOS || '';
 
 /**
  * 앱키/해시키 설정 (iOS 전용, 최초 1회). Android는 매니페스트로 주입되므로
  * 여기서 호출해도 no-op(안전)이지만, 굳이 두 번 설정할 이유가 없어 건너뛴다.
  */
-function ensureAppKey() {
-  if (appKeySet || Platform.OS !== 'ios') return;
+function ensureAppKey(): boolean {
+  if (appKeySet || Platform.OS !== 'ios') return true;
   const m = getModule();
-  if (!m || !APP_KEY || !HASH_KEY) return;
-  appKeySet = true;
+  if (!m || !APP_KEY || !HASH_KEY) return false;
   m.default.setAppKey(APP_KEY, HASH_KEY);
+  appKeySet = true;
+  return true;
 }
 
 let listenersReady = false;
@@ -100,7 +102,7 @@ export function openOfferwall(userId: string): boolean {
     }
     return false;
   }
-  ensureAppKey();
+  if (!ensureAppKey()) return false;
   m.default.setUserId(userId);
   m.default.openOfferwall();
   return true;
