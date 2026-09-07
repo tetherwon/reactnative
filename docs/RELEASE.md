@@ -15,9 +15,8 @@ eas env:create --environment production --name ADMOB_ANDROID_APP_ID \
 eas env:create --environment production --name GOOGLE_SERVICES_JSON \
   --type file --value ./google-services.json --visibility secret
 
-# 애드팝콘 오퍼월 매체 키 · 해시 키 — AdPopcorn 파트너스 대시보드에서 발급.
-# EXPO_PUBLIC_ 접두사 필수(Metro가 JS 번들에 그대로 인라인해야 iOS에서
-# setAppKey()가 동작). 어차피 APK/IPA 안에 평문으로 들어가는 값이라(Android는
+# Android 애드팝콘 매체 키 · 해시 키 — Android 매체에서 발급.
+# iOS는 아래 iOS 추가 준비의 *_IOS 변수를 사용한다. 어차피 APK/IPA 안에 평문으로 들어가는 값이라(Android는
 # AndroidManifest.xml meta-data라 apktool로 누구나 추출 가능) plaintext로 등록.
 eas env:create --environment production --name EXPO_PUBLIC_ADPOPCORN_APP_KEY \
   --value "매체 키" --visibility plaintext
@@ -42,6 +41,23 @@ package `store.shoppinglog.app`가 등록돼 있어야 함) → 앱 설정 → "
 (`ca-app-pub-…~…` 형식, 광고 단위 ID와 다르다 — `~`가 들어간 쪽이 앱 ID).
 
 ## iOS 추가 준비 (최초 1회)
+
+애드팝콘 iOS 매체에서 발급된 값으로 다음 두 변수를 추가한다. Android 키를 복사하지 않는다.
+
+```bash
+eas env:create --environment production --name EXPO_PUBLIC_ADPOPCORN_APP_KEY_IOS \
+  --value "iOS 매체 앱키" --visibility sensitive
+eas env:create --environment production --name EXPO_PUBLIC_ADPOPCORN_HASH_KEY_IOS \
+  --value "iOS 매체 해시키" --visibility sensitive
+```
+
+Railway 쇼핑로그 서버에도 `ADPOPCORN_HASH_KEY_IOS`를 추가하고 **동일한 iOS 해시키**를 넣는다.
+서버와 앱 수정본을 모두 배포해야 한다. 두 매체의 콜백 URL과 기존
+`ADPOPCORN_POSTBACK_SECRET`은 그대로 사용한다(서버는 Android/iOS 서명을 모두 검증).
+iOS 키가 하나라도 없으면 오퍼월 열기는 실패 콜백으로 종료하며 Android 키를 대신 쓰지 않는다.
+EAS 변수를 저장하는 것만으로 기존 앱 번들이 바뀌지 않으므로 production 환경변수를 적용한
+iOS 빌드 또는 호환 runtime의 OTA 업데이트를 배포한다. 서버 비밀값은 EAS에 넣지 않는다.
+
 
 ```bash
 # iOS 전용 AdMob 앱 ID — 안드로이드 앱 ID를 그대로 쓰면 안 된다.

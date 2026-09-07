@@ -42,7 +42,7 @@ const GOOGLE_SERVICES_JSON =
 // 애드팝콘 오퍼월 매체 키 · 해시 키 (AdPopcorn 파트너스 대시보드 발급).
 // EXPO_PUBLIC_ 접두사 — Android는 이 값을 여기(app.config.js, Node 시점)에서
 // 읽어 plugins/withAdpopcorn.js로 AndroidManifest.xml meta-data에 주입하고,
-// iOS는 Metro가 같은 값을 JS 번들에 그대로 인라인해 src/lib/adpopcorn.ts의
+// iOS는 별도 *_IOS 값을 Metro가 JS 번들에 인라인해 src/lib/adpopcorn.ts의
 // setAppKey() 호출이 process.env.EXPO_PUBLIC_* 로 직접 읽는다. 두 플랫폼 다
 // 결국 클라이언트(APK/IPA) 안에 평문으로 들어가는 값이라(매니페스트는 apktool로
 // 누구나 추출 가능) EAS에는 sensitive가 아닌 plaintext로 등록해도 된다 —
@@ -50,16 +50,21 @@ const GOOGLE_SERVICES_JSON =
 // 없어 ADMOB_ANDROID_APP_ID와 달리 빌드를 막지 않는다.
 const ADPOPCORN_APP_KEY = process.env.EXPO_PUBLIC_ADPOPCORN_APP_KEY || '';
 const ADPOPCORN_HASH_KEY = process.env.EXPO_PUBLIC_ADPOPCORN_HASH_KEY || '';
+const ADPOPCORN_APP_KEY_IOS = process.env.EXPO_PUBLIC_ADPOPCORN_APP_KEY_IOS || '';
+const ADPOPCORN_HASH_KEY_IOS = process.env.EXPO_PUBLIC_ADPOPCORN_HASH_KEY_IOS || '';
+const adpopcornKeysPresent = process.env.EAS_BUILD_PLATFORM === 'ios'
+  ? !!(ADPOPCORN_APP_KEY_IOS && ADPOPCORN_HASH_KEY_IOS)
+  : !!(ADPOPCORN_APP_KEY && ADPOPCORN_HASH_KEY);
 
 // 키가 비면 오퍼월은 "아무 반응 없음"으로 조용히 실패한다 — 크래시가 없어서
 // 빌드가 다 끝나고 실기기에서야 알게 된다. 빌드 로그에 크게 남긴다.
 // (EAS 에서 값이 안 들어오면 eas.json 의 build.<profile>.environment 가
 //  키를 등록한 environment 와 맞는지부터 확인할 것 — docs/RELEASE.md)
-if (process.env.EAS_BUILD_PLATFORM && !(ADPOPCORN_APP_KEY && ADPOPCORN_HASH_KEY)) {
+if (process.env.EAS_BUILD_PLATFORM && !adpopcornKeysPresent) {
   console.warn(
     '\n' +
       '='.repeat(72) +
-      '\n⚠️  EXPO_PUBLIC_ADPOPCORN_APP_KEY / HASH_KEY 가 비어 있습니다.\n' +
+      '\n⚠️  해당 플랫폼의 애드팝콘 앱키/해시키가 비어 있습니다. iOS는 *_IOS 변수를 확인하세요.\n' +
       '   이 빌드에서는 오퍼월이 열리지 않습니다(크래시는 없음).\n' +
       '   확인: eas env:list --environment production\n' +
       '   그래도 비어 있으면 eas.json 의 environment 설정을 확인하세요.\n' +
