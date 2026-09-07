@@ -440,7 +440,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.root}>
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
         <WebView
           ref={webViewRef}
           source={{ uri: HOME_URL }}
@@ -462,6 +462,9 @@ export default function HomeScreen() {
           domStorageEnabled
           javaScriptEnabled
           allowsInlineMediaPlayback
+          // SafeAreaView가 시스템 영역을 확보하므로 WKWebView 자동 여백은 끈다.
+          automaticallyAdjustContentInsets={false}
+          contentInsetAdjustmentBehavior="never"
           // androidLayerType 은 기본값(none)을 쓴다. "hardware" 로 두면 웹뷰
           // 전체가 GPU 텍스처 한 장으로 올라가는데, 세로로 긴 페이지에서는
           // 웹뷰 자체의 타일 렌더링을 방해해 스크롤·터치가 오히려 더 굼떠진다.

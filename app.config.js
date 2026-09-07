@@ -1,6 +1,16 @@
 // 카카오 네이티브 앱 키는 퍼블릭 레포에 평문으로 남기지 않기 위해
 // EAS 환경변수(KAKAO_NATIVE_APP_KEY)로 주입한다. (app.json 대신 app.config.js 사용 이유)
-const KAKAO_NATIVE_APP_KEY = process.env.KAKAO_NATIVE_APP_KEY || '';
+const KAKAO_NATIVE_APP_KEY = (process.env.KAKAO_NATIVE_APP_KEY || '').trim();
+
+// EAS 원격 빌드에서는 secret 변수까지 모두 제공된다. 빈 카카오 키로도
+// APK가 만들어지면 RN 네이티브 모듈 생성 시 잘못된 키로 SDK를 초기화한다.
+// 로컬 config 조회 시에는 EAS secret이 없을 수 있으므로 원격 빌드에서 검사한다.
+if (process.env.EAS_BUILD === 'true' && !KAKAO_NATIVE_APP_KEY) {
+  throw new Error(
+    'KAKAO_NATIVE_APP_KEY가 비어 있습니다. 이 APK 빌드에 사용하는 EAS environment에 ' +
+      '카카오 네이티브 앱 키를 등록하세요. 운영 설정으로 APK를 만들려면 --profile apk를 사용하세요.',
+  );
+}
 
 // AdMob 앱 ID (ca-app-pub-XXXX~YYYY, AdMob 콘솔 → 앱 설정).
 // AdMob 앱 ID는 비밀값이 아니라 어차피 빌드된 앱에 그대로 박히는 공개값이므로
@@ -14,8 +24,15 @@ const KAKAO_NATIVE_APP_KEY = process.env.KAKAO_NATIVE_APP_KEY || '';
 // 그래서 iOS 빌드에서 ADMOB_IOS_APP_ID 가 없으면 빌드를 세워 실수로 안드로이드
 // 값이 IPA 에 들어가는 걸 막는다(절차: docs/RELEASE.md).
 const ADMOB_ANDROID_APP_ID =
-  process.env.ADMOB_ANDROID_APP_ID || 'ca-app-pub-1856287061134936~8519744143';
-const ADMOB_IOS_APP_ID = process.env.ADMOB_IOS_APP_ID || '';
+  (process.env.ADMOB_ANDROID_APP_ID || 'ca-app-pub-1856287061134936~8519744143').trim();
+const ADMOB_IOS_APP_ID = (process.env.ADMOB_IOS_APP_ID || '').trim();
+
+// 광고 단위 ID(/)를 앱 ID(~) 자리에 넣으면 Android ContentProvider가
+// JS 시작 전에 종료될 수 있다. 원격 빌드에서 값은 노출하지 않고 형식만 검사한다.
+if (process.env.EAS_BUILD === 'true' && process.env.EAS_BUILD_PLATFORM === 'android' &&
+    !/^ca-app-pub-\d{16}~\d{10}$/.test(ADMOB_ANDROID_APP_ID)) {
+  throw new Error('ADMOB_ANDROID_APP_ID 형식이 잘못되었습니다. 광고 단위 ID(/)가 아닌 앱 ID(ca-app-pub-…~…)를 사용하세요.');
+}
 
 if (process.env.EAS_BUILD_PLATFORM === 'ios' && !ADMOB_IOS_APP_ID) {
   throw new Error(
