@@ -122,7 +122,27 @@ function extractIntentFallback(intentUrl: string): string | null {
 // intent:// URL 에서 패키지명 추출 → 마켓 설치 페이지로 유도
 function extractIntentMarket(intentUrl: string): string | null {
   const m = intentUrl.match(/package=([^;]+)/);
-  return m ? `market://details?id=${m[1]}` : null;
+  return m && /^[A-Za-z0-9_.]+$/.test(m[1]) ? `market://details?id=${m[1]}` : null;
+}
+
+// Linking.openURL은 기기에 따라 intent://를 Intent.parseUri로 해석하지 않는다.
+// 그 경우 원래 앱의 scheme URI로 재시도해야 설치된 앱을 먼저 열 수 있다.
+function extractIntentDeepLink(intentUrl: string): string | null {
+  const marker = intentUrl.indexOf('#Intent;');
+  if (marker < 0 || !intentUrl.endsWith(';end')) return null;
+  const match = intentUrl.slice(marker).match(/;scheme=([a-z][a-z0-9+.-]*);/i);
+  if (!match || /^(intent|javascript|data|file|content|about|blob)$/i.test(match[1])) return null;
+  return `${match[1]}://${intentUrl.slice('intent://'.length, marker)}`;
+}
+
+async function tryOpen(url: string | null): Promise<boolean> {
+  if (!url) return false;
+  try {
+    await Linking.openURL(url);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -133,19 +153,15 @@ function extractIntentMarket(intentUrl: string): string | null {
 export async function openExternalUrl(url: string): Promise<void> {
   try {
     if (Platform.OS === 'android' && url.startsWith('intent://')) {
+      // 폴백 URL이 있어도 설치된 결제/쇼핑 앱 실행부터 시도한다.
+      if (await tryOpen(url)) return;
+      if (await tryOpen(extractIntentDeepLink(url))) return;
       const fallback = extractIntentFallback(url);
-      if (fallback) {
-        await Linking.openURL(fallback);
-        return;
-      }
-      try {
-        await Linking.openURL(url); // 일부 기기는 intent:// 직접 처리 가능
-        return;
-      } catch {
-        const market = extractIntentMarket(url);
-        if (market) await Linking.openURL(market);
-        return;
-      }
+      if (fallback && /^https?:\/\//i.test(fallback) && await tryOpen(fallback)) return;
+      const market = extractIntentMarket(url);
+      if (await tryOpen(market)) return;
+      if (market) await tryOpen(market.replace('market://', 'https://play.google.com/store/'));
+      return;
     }
 
     // http(s)는 canOpenURL 게이트 없이 바로 연다 — Android 11+ 패키지 가시성
