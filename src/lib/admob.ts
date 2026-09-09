@@ -11,6 +11,8 @@
  * 돌려준다 → 웹은 "광고를 불러오지 못했어요"로 처리.
  */
 
+import { ensureTrackingPermission } from '@/lib/tracking';
+
 type GoogleMobileAds = typeof import('react-native-google-mobile-ads');
 
 let ads: GoogleMobileAds | null | undefined;
@@ -40,7 +42,12 @@ export function showRewardedAd(adUnit: string, userId: string): Promise<boolean>
   if (!mod || !adUnit) return Promise.resolve(false);
 
   if (!initPromise) {
-    initPromise = mod.default().initialize().catch(() => {});
+    // ATT 응답을 받은 뒤에 SDK 를 초기화한다. 먼저 초기화해 버리면 동의 전에
+    // 추적 식별자를 만질 수 있어 애플 규정 위반이다. 이미 답을 받아둔 상태면
+    // ensureTrackingPermission 이 곧바로 resolve 하므로 광고가 늦어지지 않는다.
+    initPromise = ensureTrackingPermission()
+      .then(() => mod.default().initialize())
+      .catch(() => {});
   }
 
   return initPromise.then(
