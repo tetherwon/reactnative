@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Setup EAS
@@ -39,3 +39,25 @@ jobs:
         run: |
           eas update --branch production --environment production \
             --message "$COMMIT_MESSAGE" --non-interactive
+
+  # Native builds run only when explicitly requested in the release commit message.
+  build-ios:
+    if: ${{ contains(github.event.head_commit.message, '[build-ios]') }}
+    needs: update
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Build iOS 1.6.0 for device testing
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas build --platform ios --profile production --non-interactive --wait
