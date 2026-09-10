@@ -4,6 +4,8 @@ import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as haptics from '@/lib/haptics';
+import { ensureTrackingPermission } from '@/lib/tracking';
+import { withNativePrompt } from '@/lib/nativePrompts';
 
 // 백그라운드에 이 시간(ms) 이상 머문 뒤 돌아오면 다시 잠근다.
 // 잠깐 알림 확인 등으로 전환했을 때 매번 인증을 요구하지 않기 위함.
@@ -36,10 +38,11 @@ export default function AppLockGate({ children }: { children: React.ReactNode })
     if (authInFlight.current) return;
     authInFlight.current = true;
     try {
-      const result = await LocalAuthentication.authenticateAsync({
+      await ensureTrackingPermission();
+      const result = await withNativePrompt(() => LocalAuthentication.authenticateAsync({
         promptMessage: '쇼핑로그 잠금 해제',
         cancelLabel: '취소',
-      });
+      }));
       if (result.success) {
         haptics.success();
         setState('unlocked');

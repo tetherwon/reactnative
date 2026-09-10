@@ -73,6 +73,7 @@ module.exports = {
     name: '쇼핑로그',
     slug: 'webview',
     owner: 'shoppinglog',
+    // 1.6.0: ATT, secure OAuth and iOS Expo push. Native rebuild required.
     // 1.5.0: 네이티브 변경 없음. 콜드 스타트 직렬화 제거(잠금 화면 뒤에서 웹뷰를
     // 미리 로드) + 로딩 오버레이를 onLoadProgress 로 조기 해제 + 웹뷰 콜백 참조 고정.
     // 1.4.0: 비트맵 메모리 절감(로딩 이미지를 표시 크기에 맞춘 배율별 에셋으로 분리)
@@ -86,7 +87,7 @@ module.exports = {
     // 같은 version 으로 빌드된 바이너리에만 배포된다 — 네이티브 모듈/설정이 다른
     // 구버전 앱이 새 JS를 받아 오동작하는 일을 막는다.
     // ⚠️ plugins/ios/android 블록이나 네이티브 의존성을 건드렸으면 반드시 올릴 것.
-    version: '1.5.1',
+    version: '1.6.0',
     runtimeVersion: {
       policy: 'appVersion',
     },
@@ -127,6 +128,7 @@ module.exports = {
     },
     plugins: [
       'expo-router',
+      'expo-secure-store',
       // Pretendard(웹과 동일 브랜드 서체)를 네이티브에 임베드해 로딩 화면
       // 태그라인 등 네이티브 Text에서 fontFamily:'Pretendard-Black'로 사용.
       // config plugin 방식이라 빌드 시 포함돼 첫 화면부터 지연 없이 적용된다.

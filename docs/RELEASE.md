@@ -146,3 +146,34 @@ adb shell dumpsys package store.shoppinglog.app | grep -i adpopcorn
   반드시 `version`을 올리고 새로 빌드해서 스토어에 올려야 한다.**
   버전을 안 올리면 네이티브 모듈이 없는 기존 바이너리가 새 JS를 OTA로
   받아 크래시할 수 있다.
+
+## 1.6.0 — 권한·로그인·iOS 푸시 수정 배포 순서
+
+1. `Shopping_log`의 `fix/native-auth-ios-push` 변경을 먼저 배포한다.
+   서버 시작 시 `native_auth_codes`, `expo_push_receipts` 테이블과
+   `fcm_tokens.provider` 컬럼을 자동 생성한다. 기존 FCM 토큰은 `fcm`으로 유지된다.
+2. iOS 푸시는 Expo Push Service를 사용한다. EAS 프로젝트의 iOS credentials에
+   유효한 Apple Push Notifications(APNs) 키가 등록돼 있어야 한다.
+   Expo push access-token 보안을 켠 프로젝트라면 서버에 `EXPO_ACCESS_TOKEN`을
+   설정한다. 이 토큰을 앱의 `EXPO_PUBLIC_*` 변수에 넣지 않는다.
+3. RN 변경을 받은 뒤 의존성을 설치하고 새 바이너리를 만든다.
+
+```bash
+npm ci
+npx eas-cli login
+npx eas-cli build --platform ios --profile production
+# Android APK 확인용 (preview 환경에도 기존 카카오·FCM·광고 설정 필요)
+npx eas-cli build --platform android --profile preview
+```
+
+이번 변경은 `expo-crypto`, `expo-secure-store`, ATT 네이티브 모듈을 사용한다.
+앱 버전/런타임은 `1.6.0`이다. 1.5.1 앱에 OTA만 보내면 적용되지 않는다.
+서버를 먼저 배포하지 않은 상태에서는 새 앱의 코드 교환 API가 없어 로그인이 실패한다.
+
+실기기 확인: 새 설치에서 ATT → 알림·생체인증이 겹치지 않는지 확인하고,
+ATT 허용/거부 양쪽을 검사한다. Google/Apple 로그인 성공·취소·로그인 중 앱
+종료 후 복귀, iOS 푸시 수신 및 알림 탭 이동, 로그아웃한 기기에 알림이 오지
+않는지 확인한다. APNs 실발송/스토어 심사는 자동 테스트로 검증할 수 없다.
+
+구버전 앱의 토큰 딥링크는 서버에서 당분간 호환되지만, 1.6.0 앱은 해당 링크를
+거부한다. 로그인 보안 수정은 사용자가 새 바이너리로 업데이트해야 적용된다.
