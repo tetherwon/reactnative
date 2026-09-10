@@ -101,13 +101,13 @@ export function openOfferwall(userId: string): boolean {
     }
     return false;
   }
-  ensureAppKey();
   // 오퍼월도 추적 식별자를 쓰므로 ATT 응답을 받은 뒤에 연다. 답이 이미 있으면
   // 즉시 resolve 되어 체감 지연이 없다. 실패해도 오퍼월은 그대로 연다
   // (동의 거부 = 비개인화로 동작, 오퍼월 자체가 막히는 건 아니다).
-  ensureTrackingPermission().finally(() => {
+  ensureTrackingPermission().then(() => {
+    ensureAppKey();
     m.default.setUserId(userId);
     m.default.openOfferwall();
-  });
+  }).catch(() => {});
   return true;
 }

@@ -1,43 +1,77 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
+import { APP_ORIGIN, isNativeOAuthStartUrl } from './externalLinks';
 
-/**
- * 소셜 로그인 딥링크(webview://auth?token=...) 수용 게이트.
- *
- * 딥링크는 아무 앱/웹페이지나 쏠 수 있다. 출처 검증 없이 토큰을 심으면
- * 공격자가 자기 계정 토큰으로 피해자를 조용히 로그인시키거나(세션 픽세이션),
- * 쓰레기 토큰으로 강제 로그아웃시킬 수 있다. 그래서 앱이 직접 로그인을
- * 시작했을 때만 표식을 남기고, 라우터로 들어온 토큰은 표식이 있고 그로부터
- * 10분 이내일 때만 수용한다.
- *
- * 메모리 플래그로는 안 되는 이유: 막아야 할 상황이 "로그인 도중 안드로이드가
- * 앱 프로세스를 죽였다가 딥링크로 재시작"이라 프로세스 생존을 전제할 수 없다.
- * → AsyncStorage 에 영속화한다.
- */
-
-const KEY = 'sl_oauth_pending_at';
+const KEY = 'sl_oauth_pkce_v1';
 const VALID_MS = 10 * 60 * 1000;
+type PendingAuth = { state: string; verifier: string; at: number };
+let tail: Promise<unknown> = Promise.resolve();
 
-/** 로그인 플로우를 시작하기 직전에 호출한다. */
-export async function markOAuthPending(): Promise<void> {
-  try {
-    await AsyncStorage.setItem(KEY, String(Date.now()));
-  } catch {
-    // 저장 실패 시 콜드 스타트 복구만 안 될 뿐 로그인 자체는 진행된다.
-  }
+function exclusive<T>(action: () => Promise<T>): Promise<T> {
+  const result = tail.then(action);
+  tail = result.catch(() => undefined);
+  return result;
 }
 
-/**
- * 딥링크 토큰을 수용해도 되는지 확인하고 표식을 소모한다(1회용).
- * 표식이 없거나 10분이 지났으면 false — 토큰을 버려야 한다.
- */
-export async function consumeOAuthPending(): Promise<boolean> {
-  try {
-    const raw = await AsyncStorage.getItem(KEY);
-    if (raw == null) return false;
-    await AsyncStorage.removeItem(KEY);
-    const at = Number(raw);
-    return Number.isFinite(at) && Date.now() - at < VALID_MS;
-  } catch {
-    return false;
-  }
+async function randomHex(): Promise<string> {
+  const bytes = await Crypto.getRandomBytesAsync(32);
+  return Array.from(bytes, (n) => n.toString(16).padStart(2, '0')).join('');
+}
+
+export function beginOAuth(rawUrl: string): Promise<{ url: string; state: string }> {
+  return exclusive(async () => {
+    if (!isNativeOAuthStartUrl(rawUrl)) throw new Error('Invalid login URL');
+    const state = await randomHex();
+    const verifier = await randomHex();
+    const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier,
+      { encoding: Crypto.CryptoEncoding.BASE64 });
+    const challenge = digest.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    await SecureStore.setItemAsync(KEY, JSON.stringify({ state, verifier, at: Date.now() }),
+      { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY });
+    const url = new URL(rawUrl);
+    url.searchParams.set('app', '1');
+    url.searchParams.set('app_state', state);
+    url.searchParams.set('code_challenge', challenge);
+    url.searchParams.set('code_challenge_method', 'S256');
+    return { url: url.toString(), state };
+  });
+}
+
+export function cancelOAuth(state: string): Promise<void> {
+  return exclusive(async () => {
+    const raw = await SecureStore.getItemAsync(KEY);
+    if (raw && JSON.parse(raw).state === state) await SecureStore.deleteItemAsync(KEY);
+  });
+}
+
+export function exchangeOAuthCode(code: string, state: string): Promise<string | null> {
+  return exclusive(async () => {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(code) || !/^[a-f0-9]{64}$/.test(state)) return null;
+    const raw = await SecureStore.getItemAsync(KEY);
+    if (!raw) return null;
+    let pending: PendingAuth;
+    try { pending = JSON.parse(raw); } catch { await SecureStore.deleteItemAsync(KEY); return null; }
+    if (pending.state !== state) return null;
+    const age = Date.now() - pending.at;
+    if (!Number.isFinite(age) || age < 0 || age >= VALID_MS) {
+      await SecureStore.deleteItemAsync(KEY);
+      return null;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    try {
+      // No session cookies: possession of the per-attempt verifier is required.
+      const response = await fetch(APP_ORIGIN + '/api/auth/app-exchange', {
+        method: 'POST', credentials: 'omit', signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, state, code_verifier: pending.verifier }),
+      });
+      if (!response.ok) throw new Error('Login exchange failed');
+      const result = await response.json();
+      return typeof result.token === 'string' && result.token ? result.token : null;
+    } finally {
+      clearTimeout(timer);
+      await SecureStore.deleteItemAsync(KEY);
+    }
+  });
 }

@@ -86,18 +86,13 @@ export function resolveNavigationTarget(url: string): string | null {
 // 열어야 한다 — 자사→구글→자사 콜백 도중에 웹뷰로 갈아타면, 로그인 시작 시
 // 웹뷰 쿠키 저장소에 심어둔 state/app 쿠키를 콜백이 못 봐서
 // state_mismatch로 깨진다(웹뷰와 시스템 브라우저는 쿠키 저장소가 다름).
-const NATIVE_OAUTH_START_PATHS = ['https://shoppinglog.store/auth/google'];
+const NATIVE_OAUTH_START_PATHS = ['/auth/google', '/auth/apple', '/auth/kakao'];
 
 export function isNativeOAuthStartUrl(url: string): boolean {
-  return NATIVE_OAUTH_START_PATHS.some((prefix) => url.startsWith(prefix));
-}
-
-// 웹뷰 안에서 진행되는 소셜 로그인 플로우(애플, 카카오 웹 폴백 등)의 시작/콜백
-// 경로. 이 플로우는 마지막에 webview://auth 딥링크로 끝나는데, 딥링크 토큰은
-// 앱이 로그인을 시작했다는 표식(authGate)이 있어야만 수용되므로, 이 경로로의
-// 이동을 볼 때 표식을 남겨야 한다.
-export function isOAuthWebStartUrl(url: string): boolean {
-  return url.startsWith('https://shoppinglog.store/auth/');
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === APP_ORIGIN && NATIVE_OAUTH_START_PATHS.includes(parsed.pathname);
+  } catch { return false; }
 }
 
 // 안드로이드에서 외부 브라우저로 다운로드시킬 문서 확장자.

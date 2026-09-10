@@ -5,6 +5,8 @@ import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
+  AppState,
   BackHandler,
   Image,
   Platform,
@@ -25,12 +27,11 @@ import type {
 import ConnectionErrorView from '@/components/ConnectionErrorView';
 import { showRewardedAd } from '@/lib/admob';
 import { ensureAdpopcornListeners, openOfferwall as openAdpopcornOfferwall } from '@/lib/adpopcorn';
-import { consumeOAuthPending, markOAuthPending } from '@/lib/authGate';
+import { beginOAuth, cancelOAuth, exchangeOAuthCode } from '@/lib/authGate';
 import {
   APP_ORIGIN,
   isAppOrigin,
   isNativeOAuthStartUrl,
-  isOAuthWebStartUrl,
   isTrustedHost,
   isWebViewNavigable,
   openExternalUrl,
@@ -44,8 +45,8 @@ import {
   resolveKakaoLoginScript,
 } from '@/lib/kakaoBridge';
 import {
-  getFcmDeviceTokenAsync,
-  registerForPushNotificationsAsync,
+  getNativePushTokenAsync,
+  ensureNotificationPermission,
 } from '@/lib/notifications';
 
 const HOME_URL = APP_ORIGIN;
@@ -127,7 +128,7 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    registerForPushNotificationsAsync();
+    void ensureNotificationPermission();
   }, []);
 
   // 오퍼월이 닫히면 웹에 알려 잔액을 갱신시킨다. 리스너는 앱 생애주기 동안 1회만 등록.
@@ -216,58 +217,44 @@ export default function HomeScreen() {
     );
   }, []);
 
-  // 로그인 완료 후 백엔드가 webview://auth?token=...&new=... 로 돌려준
-  // 딥링크에서 토큰을 꺼낸다. 인증 세션이 직접 돌려준 결과라 출처가 확실하므로
-  // 게이트 확인 없이 수용하되, 남은 진행 중 표식은 소모해 재사용을 막는다.
-  const completeAppAuthRedirect = useCallback(
-    (deepLinkUrl: string) => {
-      const match = deepLinkUrl.match(/[?&]token=([^&]+)/);
-      if (!match) return;
-      consumeOAuthPending();
-      applyAuthToken(decodeURIComponent(match[1]));
-    },
-    [applyAuthToken],
-  );
+  const completeAppAuthRedirect = useCallback(async (deepLinkUrl: string) => {
+    const url = new URL(deepLinkUrl);
+    if (url.protocol !== 'webview:' || url.hostname !== 'auth' || (url.pathname && url.pathname !== '/')) return;
+    const token = await exchangeOAuthCode(url.searchParams.get('code') || '', url.searchParams.get('state') || '');
+    if (token) applyAuthToken(token);
+  }, [applyAuthToken]);
 
-  // 로그인 딥링크가 openAuthSessionAsync 에 잡히지 않고 Expo Router 로 직접
-  // 들어온 경우(로그인 도중 앱 프로세스가 죽었다가 딥링크로 재시작된 경우 등).
-  // +native-intent.tsx 가 webview://auth?token=... 을 /?token=... 으로
-  // 돌려보내므로 여기서 token 파라미터를 받아 처리한다.
-  // ⚠️ 이 경로의 딥링크는 아무 앱이나 쏠 수 있으므로, 우리가 로그인을 시작했다는
-  // 표식(authGate)이 있을 때만 수용한다 — 없으면 세션 픽세이션 시도로 보고 버린다.
-  const { token: authTokenParam } = useLocalSearchParams<{ token?: string }>();
-  const handledAuthTokenParam = useRef<string | null>(null);
+  // A process restart may route the callback here instead of the auth-session promise.
+  // Both paths use the same serialized, one-time PKCE exchange. Raw tokens are rejected.
+  const { code: authCode, state: authState } = useLocalSearchParams<{ code?: string; state?: string }>();
+  const handledCode = useRef<string | null>(null);
   useEffect(() => {
-    if (typeof authTokenParam !== 'string' || authTokenParam.length === 0) return;
-    if (handledAuthTokenParam.current === authTokenParam) return;
-    handledAuthTokenParam.current = authTokenParam;
-    consumeOAuthPending().then((accepted) => {
-      if (accepted) applyAuthToken(authTokenParam);
-    });
-  }, [authTokenParam, applyAuthToken]);
+    if (typeof authCode !== 'string' || typeof authState !== 'string' || handledCode.current === authCode) return;
+    handledCode.current = authCode;
+    exchangeOAuthCode(authCode, authState).then((token) => {
+      if (token) applyAuthToken(token);
+    }).catch(() => Alert.alert('로그인 실패', '로그인을 다시 시작해 주세요.'));
+  }, [authCode, authState, applyAuthToken]);
 
-  // 구글은 임베디드 웹뷰 안에서의 OAuth 로그인을 자체 차단한다
-  // (Error 403: disallowed_useragent). /auth/google "시작 경로"로 가는
-  // 이동을 통째로 시스템 인증 세션(Custom Tab/SFSafariViewController)
-  // 하나로 열어서 자사→구글→자사 콜백을 전부 같은 브라우저 쿠키 저장소
-  // 안에서 처리하고, 최종 앱 딥링크(webview://auth)로 돌아오면 웹뷰에
-  // 토큰을 넘겨준다.
-  const openGoogleOAuth = useCallback(
-    (url: string) => {
-      // 인증 세션을 열기 전에 "로그인 진행 중" 표식을 남긴다. 프로세스가
-      // 죽었다 딥링크로 재시작돼도 라우터 경로가 토큰을 수용할 수 있게.
-      markOAuthPending().finally(() => {
-        WebBrowser.openAuthSessionAsync(url, APP_AUTH_REDIRECT_PREFIX)
-          .then((result) => {
-            if (result.type === 'success' && result.url) {
-              completeAppAuthRedirect(result.url);
-            }
-          })
-          .catch(() => {});
-      });
-    },
-    [completeAppAuthRedirect],
-  );
+  const oauthInFlight = useRef(false);
+  const openNativeOAuth = useCallback((url: string) => {
+    if (oauthInFlight.current) return;
+    oauthInFlight.current = true;
+    void (async () => {
+      let state: string | undefined;
+      try {
+        const login = await beginOAuth(url);
+        state = login.state;
+        const result = await WebBrowser.openAuthSessionAsync(login.url, APP_AUTH_REDIRECT_PREFIX);
+        if (result.type === 'success') await completeAppAuthRedirect(result.url);
+      } catch {
+        Alert.alert('로그인 실패', '로그인을 다시 시작해 주세요.');
+      } finally {
+        if (state) await cancelOAuth(state).catch(() => {});
+        oauthInFlight.current = false;
+      }
+    })();
+  }, [completeAppAuthRedirect]);
 
   // 새 창 요청(target="_blank" 링크, window.open) 처리.
   // 안드로이드는 이 핸들러가 없으면 새 창을 화면에 붙지 않는 보이지 않는
@@ -276,14 +263,14 @@ export default function HomeScreen() {
     (event: WebViewOpenWindowEvent) => {
       const { targetUrl } = event.nativeEvent;
       if (isNativeOAuthStartUrl(targetUrl)) {
-        openGoogleOAuth(targetUrl);
+        openNativeOAuth(targetUrl);
       } else if (isWebViewNavigable(targetUrl) && isTrustedHost(targetUrl)) {
         goTo(targetUrl);
       } else {
         openExternalUrl(targetUrl);
       }
     },
-    [goTo, openGoogleOAuth],
+    [goTo, openNativeOAuth],
   );
 
   // 신뢰 도메인(자사·결제·로그인)의 웹 URL만 웹뷰가 처리하고, 그 외 http(s) 최상위
@@ -292,12 +279,9 @@ export default function HomeScreen() {
   const onShouldStartLoadWithRequest = useCallback(
     (request: ShouldStartLoadRequest) => {
       if (isNativeOAuthStartUrl(request.url)) {
-        openGoogleOAuth(request.url);
+        openNativeOAuth(request.url);
         return false;
       }
-      // 웹뷰 안에서 진행되는 소셜 로그인(애플 등)도 마지막에 딥링크로 끝나므로
-      // 표식을 남겨야 라우터 경로가 토큰을 수용한다.
-      if (isOAuthWebStartUrl(request.url)) markOAuthPending();
       if (!isWebViewNavigable(request.url)) {
         openExternalUrl(request.url);
         return false;
@@ -314,27 +298,29 @@ export default function HomeScreen() {
       }
       return true;
     },
-    [openGoogleOAuth],
+    [openNativeOAuth],
   );
 
-  // 웹(native-push.js)에 FCM 토큰을 넘겨 서버에 등록시킨다.
+  // 웹(native-push.js)에 플랫폼별 FCM/Expo 토큰을 넘겨 로그인 사용자로 등록한다.
   // (RN → 웹 방향 계약: Shopping_log 레포 docs/RN_BRIDGE.md)
   const sendPushTokenToWeb = useCallback(async () => {
-    const token = await getFcmDeviceTokenAsync();
-    if (!token) return;
+    const registration = await getNativePushTokenAsync();
+    if (!registration) return;
     injectIntoApp(
       `window.SLNative&&window.SLNative.registerPushToken(` +
-        `${JSON.stringify(token)},${JSON.stringify(Platform.OS)});`,
+        `${JSON.stringify(registration.token)},${JSON.stringify(registration.platform)},${JSON.stringify(registration.provider)});`,
     );
   }, [injectIntoApp]);
 
-  // FCM 토큰이 갱신되면 웹에 다시 등록시킨다.
+  // 기기 토큰 갱신 및 설정 앱에서 알림 권한을 바꾼 뒤 복귀 시 재등록한다.
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
     const sub = Notifications.addPushTokenListener(() => {
       sendPushTokenToWeb();
     });
-    return () => sub.remove();
+    const activeSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void sendPushTokenToWeb();
+    });
+    return () => { sub.remove(); activeSub.remove(); };
   }, [sendPushTokenToWeb]);
 
   // 웹 → RN 메시지 라우팅 (window.ReactNativeWebView.postMessage):
