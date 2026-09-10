@@ -37,8 +37,10 @@ jobs:
         env:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          eas update --branch production --environment production \
-            --message "$COMMIT_MESSAGE" --non-interactive
+          for platform in ios android; do
+            eas update --platform "$platform" --branch production --environment production \
+              --message "$COMMIT_MESSAGE" --non-interactive
+          done
 
   # Native builds run only when explicitly requested in the release commit message.
   build-ios:
