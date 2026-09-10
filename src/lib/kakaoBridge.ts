@@ -22,17 +22,27 @@ const ORIGIN_GUARD = `if (location.origin !== ${JSON.stringify(APP_ORIGIN)}) ret
 export const KAKAO_BRIDGE_INJECTED_JS = `
 (function () {
   ${ORIGIN_GUARD}
-  if (window.Capacitor) return;
+  if (window.__slKakaoBridgeVersion === 2) return;
+  // Preserve real Capacitor plugins; only install our RN compatibility bridge.
+  if (window.Capacitor && !window.__slKakaoBridgeVersion) return;
+  window.__slKakaoBridgeVersion = 2;
   var pending = {};
   var reqId = 0;
+  var pageId = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
   window.Capacitor = {
     isNativePlatform: function () { return true; },
     Plugins: {
       KakaoAuth: {
+        bridgeVersion: 2,
         login: function () {
           return new Promise(function (resolve, reject) {
-            var id = String(++reqId);
-            pending[id] = { resolve: resolve, reject: reject };
+            if (Object.keys(pending).length) { reject(new Error('login_busy')); return; }
+            var id = pageId + '-' + String(++reqId);
+            var timer = setTimeout(function () {
+              delete pending[id];
+              reject(new Error('login_timeout'));
+            }, 125000);
+            pending[id] = { resolve: resolve, reject: reject, timer: timer };
             window.ReactNativeWebView.postMessage(JSON.stringify({
               type: ${JSON.stringify(KAKAO_BRIDGE_MESSAGE_TYPE)},
               id: id,
@@ -45,12 +55,14 @@ export const KAKAO_BRIDGE_INJECTED_JS = `
   window.__slResolveKakaoLogin = function (id, accessToken) {
     var p = pending[id];
     if (!p) return;
+    clearTimeout(p.timer);
     delete pending[id];
     p.resolve({ accessToken: accessToken });
   };
   window.__slRejectKakaoLogin = function (id, message) {
     var p = pending[id];
     if (!p) return;
+    clearTimeout(p.timer);
     delete pending[id];
     p.reject(new Error(message));
   };
