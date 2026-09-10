@@ -104,6 +104,11 @@ module.exports = {
         ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription: '상품 사진을 촬영해 업로드하기 위해 카메라를 사용합니다.',
         NSPhotoLibraryUsageDescription: '상품 사진을 선택해 업로드하기 위해 사진 보관함에 접근합니다.',
+        // ATT 문구. 아래 expo-tracking-transparency / react-native-google-mobile-ads
+        // 플러그인도 prebuild 때 같은 값을 써 넣지만, 여기 직접 적어두면 플러그인
+        // 구성이 바뀌어도 키가 사라지지 않는다. 이 키가 없으면 ATT 팝업을 부르는
+        // 순간 iOS 가 앱을 죽인다.
+        NSUserTrackingUsageDescription: IOS_TRACKING_USAGE_DESCRIPTION,
       },
     },
     android: {
@@ -206,6 +211,14 @@ module.exports = {
           ...(ADMOB_IOS_APP_ID ? { iosAppId: ADMOB_IOS_APP_ID } : {}),
           userTrackingUsageDescription: IOS_TRACKING_USAGE_DESCRIPTION,
         },
+      ],
+      // ATT(App Tracking Transparency). NSUserTrackingUsageDescription 은 아래
+      // react-native-google-mobile-ads 플러그인도 같은 문구로 쓰지만, 요청을
+      // 실제로 부르는 건 이 패키지(src/lib/tracking.ts)이므로 여기서도 명시한다.
+      // 두 플러그인이 같은 값을 쓰므로 충돌하지 않는다.
+      [
+        'expo-tracking-transparency',
+        { userTrackingPermission: IOS_TRACKING_USAGE_DESCRIPTION },
       ],
       [
         './plugins/withAdpopcorn',

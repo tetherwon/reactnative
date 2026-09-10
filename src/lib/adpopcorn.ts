@@ -15,6 +15,7 @@
  * admob.ts와 동일하게, 모듈이 없는 바이너리(구버전 앱)에서 import 시점에
  * 죽지 않도록 require를 try/catch로 감싼다.
  */
+import { ensureTrackingPermission } from '@/lib/tracking';
 import { NativeModules, Platform } from 'react-native';
 
 type AdPopcornRewardModule = typeof import('react-native-adpopcorn-reward');
@@ -101,7 +102,12 @@ export function openOfferwall(userId: string): boolean {
     return false;
   }
   ensureAppKey();
-  m.default.setUserId(userId);
-  m.default.openOfferwall();
+  // 오퍼월도 추적 식별자를 쓰므로 ATT 응답을 받은 뒤에 연다. 답이 이미 있으면
+  // 즉시 resolve 되어 체감 지연이 없다. 실패해도 오퍼월은 그대로 연다
+  // (동의 거부 = 비개인화로 동작, 오퍼월 자체가 막히는 건 아니다).
+  ensureTrackingPermission().finally(() => {
+    m.default.setUserId(userId);
+    m.default.openOfferwall();
+  });
   return true;
 }
