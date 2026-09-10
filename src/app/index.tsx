@@ -1,5 +1,4 @@
 import { useNetInfo } from '@react-native-community/netinfo';
-import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -38,6 +37,7 @@ import {
   resolveNavigationTarget,
 } from '@/lib/externalLinks';
 import * as haptics from '@/lib/haptics';
+import { loginWithKakao } from '@/lib/kakaoLogin';
 import {
   KAKAO_BRIDGE_INJECTED_JS,
   KAKAO_BRIDGE_MESSAGE_TYPE,
@@ -371,10 +371,10 @@ export default function HomeScreen() {
       if (data.type !== KAKAO_BRIDGE_MESSAGE_TYPE || !data.id) return;
       const { id } = data;
 
-      kakaoLogin()
-        .then((result) => {
+      loginWithKakao()
+        .then((accessToken) => {
           webViewRef.current?.injectJavaScript(
-            resolveKakaoLoginScript(id, result.accessToken),
+            resolveKakaoLoginScript(id, accessToken),
           );
         })
         .catch((error: { code?: string; message?: string }) => {
@@ -438,6 +438,7 @@ export default function HomeScreen() {
           onLoadEnd={onLoadEnd}
           onMessage={onMessage}
           injectedJavaScriptBeforeContentLoaded={KAKAO_BRIDGE_INJECTED_JS}
+          injectedJavaScript={KAKAO_BRIDGE_INJECTED_JS}
           onError={() => {
             lastLoadFailed.current = true;
             setFirstLoadDone(true);
