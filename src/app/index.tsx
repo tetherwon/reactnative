@@ -1,79 +1,18 @@
 import { useNetInfo } from '@react-native-community/netinfo';
-import * as Notifications from 'expo-notifications';
-import { useLocalSearchParams } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  AppState,
-  BackHandler,
-  Image,
-  Platform,
-  StyleSheet,
-  Text,
-  ToastAndroid,
-  View,
-} from 'react-native';
+import { BackHandler, Platform, StyleSheet, ToastAndroid, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
-import type {
-  ShouldStartLoadRequest,
-  WebViewMessageEvent,
-  WebViewOpenWindowEvent,
-  WebViewProgressEvent,
-} from 'react-native-webview/lib/WebViewTypes';
-
+import type { ShouldStartLoadRequest, WebViewOpenWindowEvent, WebViewProgressEvent } from 'react-native-webview/lib/WebViewTypes';
 import ConnectionErrorView from '@/components/ConnectionErrorView';
-import { showRewardedAd } from '@/lib/admob';
-import { ensureAdpopcornListeners, openOfferwall as openAdpopcornOfferwall } from '@/lib/adpopcorn';
-import { beginOAuth, cancelOAuth, exchangeOAuthCode } from '@/lib/authGate';
-import {
-  APP_ORIGIN,
-  isAppOrigin,
-  isNativeOAuthStartUrl,
-  isTrustedHost,
-  isWebViewNavigable,
-  openExternalUrl,
-  resolveNavigationTarget,
-} from '@/lib/externalLinks';
+import WebViewSplash from '@/components/WebViewSplash';
+import { useNativeBridge } from '@/hooks/useNativeBridge';
+import { useWebViewAuth } from '@/hooks/useWebViewAuth';
+import { APP_ORIGIN, isNativeOAuthStartUrl, isTrustedHost, isWebViewNavigable, openExternalUrl, resolveNavigationTarget } from '@/lib/externalLinks';
 import * as haptics from '@/lib/haptics';
-import { loginWithKakao } from '@/lib/kakaoLogin';
-import {
-  KAKAO_BRIDGE_INJECTED_JS,
-  KAKAO_BRIDGE_MESSAGE_TYPE,
-  rejectKakaoLoginScript,
-  resolveKakaoLoginScript,
-} from '@/lib/kakaoBridge';
-import {
-  getNativePushTokenAsync,
-  ensureNotificationPermission,
-} from '@/lib/notifications';
+import { KAKAO_BRIDGE_INJECTED_JS } from '@/lib/kakaoBridge';
 
 const HOME_URL = APP_ORIGIN;
-
-// 웹은 회원 PK를 숫자로 보낼 수 있다(JSON.stringify({userId: 123})).
-// 문자열만 받으면 조용히 빈 값이 돼 광고·오퍼월이 "눌러도 무반응"이 된다.
-function toIdString(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
-  return '';
-}
-
-// 구글 로그인 완료 후 백엔드(app/routes/auth.py 의 APP_AUTH_REDIRECT)가
-// 돌려보내는 딥링크 스킴. app.config.js 의 scheme("webview")과 일치해야
-// 하고, 백엔드 환경변수 APP_AUTH_REDIRECT 도 이 값으로 맞춰야 한다
-// (기본값 "shoppinglog://auth" 는 이 앱 스킴과 다르므로 반드시 덮어써야 함).
-const APP_AUTH_REDIRECT_PREFIX = 'webview://auth';
-
-// 웹 스플래시(_splash.html)와 같은 그림. 웹뷰가 뜨는 순간 화면이 바뀌지 않는다.
-//
-// ⚠️ 배율 접미사가 없는 단일 에셋을 쓰면 안 된다. 그런 에셋은 drawable-mdpi 로
-// 들어가고 안드로이드가 기기 배율만큼 확대해서 디코딩한다 — 원본 600×1087 하나만
-// 두면 3x 기기에서 22MB 비트맵이 잡힌다(250×453dp 로 그리는데도).
-// 표시 크기(시안 393×852 의 63.61%×53.17% = 250×453dp)에 맞춘 배율별 에셋을 두면
-// 각 기기가 1:1로 디코딩해 3x 에서도 3.9MB 로 줄고, RN 이 알아서
-// mdpi/xhdpi/xxhdpi 폴더로 나눠 넣는다. @2x/@3x 파일을 함께 유지할 것.
-const SPLASH_BEAR = require('../../assets/images/splash-bear.png');
 
 // 이 진행률을 넘기면 첫 화면은 이미 그려져 있다고 보고 로딩 오버레이를 걷는다.
 // 너무 낮으면 흰 화면이 비치고, 1.0 이면 onLoadEnd 와 다를 게 없다.
@@ -118,36 +57,6 @@ export default function HomeScreen() {
     webViewRef.current?.reload();
   }, []);
 
-  // window.SLNative.* 는 자사 웹이 정의한 함수다. 결제/로그인 때문에 타사
-  // 도메인이 떠 있는 동안 그대로 주입하면 FCM 토큰 같은 값을 그쪽 페이지에
-  // 넘겨주게 되므로, RN → 웹 방향 호출은 전부 이 오리진 가드를 통과시킨다.
-  const injectIntoApp = useCallback((js: string) => {
-    webViewRef.current?.injectJavaScript(
-      `(function(){if(location.origin!==${JSON.stringify(APP_ORIGIN)})return;${js}})();true;`,
-    );
-  }, []);
-
-  useEffect(() => {
-    void ensureNotificationPermission();
-  }, []);
-
-  // 오퍼월이 닫히면 웹에 알려 잔액을 갱신시킨다. 리스너는 앱 생애주기 동안 1회만 등록.
-  // (RN → 웹 방향 계약: Shopping_log 레포 docs/RN_BRIDGE.md)
-  useEffect(() => {
-    ensureAdpopcornListeners(() => {
-      injectIntoApp('window.SLNative&&window.SLNative.onAdpopcornClosed();');
-    });
-  }, [injectIntoApp]);
-
-  const lastResponse = Notifications.useLastNotificationResponse();
-  useEffect(() => {
-    const url = lastResponse?.notification.request.content.data?.url;
-    if (typeof url === 'string' && url.length > 0) {
-      haptics.success();
-      goTo(url);
-    }
-  }, [lastResponse, goTo]);
-
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -183,78 +92,8 @@ export default function HomeScreen() {
     if (navState.url) currentUrl.current = navState.url;
   }, []);
 
-  // 로그인 토큰을 웹뷰의 localStorage에 심고 홈으로 보낸다.
-  // (Kakao 웹 폴백 로그인이 성공 시 하는 것과 동일한 방식 — auth.js 참고)
-  // 웹뷰가 아직 첫 로드를 마치지 않았으면(딥링크 콜드 스타트) 보관해뒀다가
-  // onLoadEnd 에서 주입한다. 같은 토큰이 두 경로(인증 세션 + 라우터 파라미터)로
-  // 겹쳐 들어와도 한 번만 주입한다.
-  // ⚠️ 토큰은 "지금 웹뷰가 떠 있는 오리진"의 localStorage 에 들어간다. 결제·소셜
-  // 로그인 때문에 타사 도메인(TRUSTED_HOSTS)에 머물러 있는 채로 주입하면 로그인
-  // 토큰을 그 도메인에 넘겨주는 셈이 된다. 자사 오리진일 때만 쓰고, 아니면 홈으로
-  // 돌려보낸 뒤 onLoadEnd 에서 다시 시도한다.
-  const pendingAuthToken = useRef<string | null>(null);
-  const lastAppliedToken = useRef<string | null>(null);
-  const authHomeRedirectDone = useRef(false);
-  const applyAuthToken = useCallback((token: string) => {
-    if (lastAppliedToken.current === token) return;
-    if (!isLoaded.current || !isAppOrigin(currentUrl.current)) {
-      pendingAuthToken.current = token;
-      if (isLoaded.current && !authHomeRedirectDone.current) {
-        authHomeRedirectDone.current = true;
-        webViewRef.current?.injectJavaScript(
-          `window.location.href = ${JSON.stringify(HOME_URL + '/')}; true;`,
-        );
-      }
-      return;
-    }
-    lastAppliedToken.current = token;
-    authHomeRedirectDone.current = false;
-    // 주입 시점에도 오리진을 한 번 더 본다(주입과 페이지 이동 사이의 경합 방어).
-    webViewRef.current?.injectJavaScript(
-      `(function(){if(location.origin!==${JSON.stringify(APP_ORIGIN)})return;` +
-        `try{localStorage.setItem('sl_token',${JSON.stringify(token)});}catch(e){}` +
-        `location.href='/';})();true;`,
-    );
-  }, []);
-
-  const completeAppAuthRedirect = useCallback(async (deepLinkUrl: string) => {
-    const url = new URL(deepLinkUrl);
-    if (url.protocol !== 'webview:' || url.hostname !== 'auth' || (url.pathname && url.pathname !== '/')) return;
-    const token = await exchangeOAuthCode(url.searchParams.get('code') || '', url.searchParams.get('state') || '');
-    if (token) applyAuthToken(token);
-  }, [applyAuthToken]);
-
-  // A process restart may route the callback here instead of the auth-session promise.
-  // Both paths use the same serialized, one-time PKCE exchange. Raw tokens are rejected.
-  const { code: authCode, state: authState } = useLocalSearchParams<{ code?: string; state?: string }>();
-  const handledCode = useRef<string | null>(null);
-  useEffect(() => {
-    if (typeof authCode !== 'string' || typeof authState !== 'string' || handledCode.current === authCode) return;
-    handledCode.current = authCode;
-    exchangeOAuthCode(authCode, authState).then((token) => {
-      if (token) applyAuthToken(token);
-    }).catch(() => Alert.alert('로그인 실패', '로그인을 다시 시작해 주세요.'));
-  }, [authCode, authState, applyAuthToken]);
-
-  const oauthInFlight = useRef(false);
-  const openNativeOAuth = useCallback((url: string) => {
-    if (oauthInFlight.current) return;
-    oauthInFlight.current = true;
-    void (async () => {
-      let state: string | undefined;
-      try {
-        const login = await beginOAuth(url);
-        state = login.state;
-        const result = await WebBrowser.openAuthSessionAsync(login.url, APP_AUTH_REDIRECT_PREFIX);
-        if (result.type === 'success') await completeAppAuthRedirect(result.url);
-      } catch {
-        Alert.alert('로그인 실패', '로그인을 다시 시작해 주세요.');
-      } finally {
-        if (state) await cancelOAuth(state).catch(() => {});
-        oauthInFlight.current = false;
-      }
-    })();
-  }, [completeAppAuthRedirect]);
+  const { openNativeOAuth, flushPendingAuth } = useWebViewAuth(webViewRef, isLoaded, currentUrl);
+  const { onMessage } = useNativeBridge(webViewRef, goTo);
 
   // 새 창 요청(target="_blank" 링크, window.open) 처리.
   // 안드로이드는 이 핸들러가 없으면 새 창을 화면에 붙지 않는 보이지 않는
@@ -301,93 +140,6 @@ export default function HomeScreen() {
     [openNativeOAuth],
   );
 
-  // 웹(native-push.js)에 플랫폼별 FCM/Expo 토큰을 넘겨 로그인 사용자로 등록한다.
-  // (RN → 웹 방향 계약: Shopping_log 레포 docs/RN_BRIDGE.md)
-  const sendPushTokenToWeb = useCallback(async () => {
-    const registration = await getNativePushTokenAsync();
-    if (!registration) return;
-    injectIntoApp(
-      `window.SLNative&&window.SLNative.registerPushToken(` +
-        `${JSON.stringify(registration.token)},${JSON.stringify(registration.platform)},${JSON.stringify(registration.provider)});`,
-    );
-  }, [injectIntoApp]);
-
-  // 기기 토큰 갱신 및 설정 앱에서 알림 권한을 바꾼 뒤 복귀 시 재등록한다.
-  useEffect(() => {
-    const sub = Notifications.addPushTokenListener(() => {
-      sendPushTokenToWeb();
-    });
-    const activeSub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void sendPushTokenToWeb();
-    });
-    return () => { sub.remove(); activeSub.remove(); };
-  }, [sendPushTokenToWeb]);
-
-  // 웹 → RN 메시지 라우팅 (window.ReactNativeWebView.postMessage):
-  // - KAKAO_LOGIN_REQUEST: 네이티브 카카오 SDK 로그인 → 웹의 Promise로 응답
-  // - push:getToken: FCM 토큰 발급 → SLNative.registerPushToken 으로 응답
-  // - admob:showRewarded: 보상형 광고 표시 → SLNative.onAdmobResult 로 응답
-  // - adpopcorn:openOfferwall: 오퍼월 열기 → 닫히면 SLNative.onAdpopcornClosed 호출
-  const onMessage = useCallback(
-    (event: WebViewMessageEvent) => {
-      // ⚠️ 브리지는 자사 오리진 전용. 웹뷰에는 결제/로그인 때문에 타사 도메인도
-      // 뜨는데(TRUSTED_HOSTS 에는 sites.google.com·blog.naver.com 처럼 남이 JS를
-      // 올릴 수 있는 호스트까지 딸려 온다) 그런 페이지가 이 브리지를 쓰면
-      // 카카오 accessToken·FCM 토큰을 가져가거나, 자기 adUnit/userId 로 광고·
-      // 오퍼월 보상을 자기 앞으로 돌릴 수 있다. 오리진이 다르면 전부 무시한다.
-      if (!isAppOrigin(event.nativeEvent.url)) return;
-
-      let data: { type?: string; id?: string; adUnit?: unknown; userId?: unknown };
-      try {
-        data = JSON.parse(event.nativeEvent.data);
-      } catch {
-        return;
-      }
-
-      if (data.type === 'push:getToken') {
-        sendPushTokenToWeb();
-        return;
-      }
-
-      if (data.type === 'admob:showRewarded') {
-        const adUnit = typeof data.adUnit === 'string' ? data.adUnit : '';
-        const userId = toIdString(data.userId);
-        showRewardedAd(adUnit, userId).then((rewarded) => {
-          injectIntoApp(`window.SLNative&&window.SLNative.onAdmobResult(${rewarded});`);
-        });
-        return;
-      }
-
-      if (data.type === 'adpopcorn:openOfferwall') {
-        const opened = openAdpopcornOfferwall(toIdString(data.userId));
-        // 오퍼월을 못 열었으면 웹이 대기 상태에 갇히지 않도록 닫힘 콜백을
-        // 바로 돌려준다(잔액 갱신 로직을 그대로 태워 UI가 원상복구된다).
-        if (!opened) {
-          injectIntoApp('window.SLNative&&window.SLNative.onAdpopcornClosed();');
-        }
-        return;
-      }
-
-      if (data.type !== KAKAO_BRIDGE_MESSAGE_TYPE || !data.id) return;
-      const { id } = data;
-
-      loginWithKakao()
-        .then((accessToken) => {
-          webViewRef.current?.injectJavaScript(
-            resolveKakaoLoginScript(id, accessToken),
-          );
-        })
-        .catch((error: { code?: string; message?: string }) => {
-          const message =
-            error?.code === 'E_CANCELLED_OPERATION'
-              ? 'cancelled'
-              : error?.message || 'login_failed';
-          webViewRef.current?.injectJavaScript(rejectKakaoLoginScript(id, message));
-        });
-    },
-    [injectIntoApp, sendPushTokenToWeb],
-  );
-
   // onLoadEnd 는 로드 "실패" 시에도 불린다(onError 직후). 실패한 로드에
   // 보관해둔 토큰/URL을 주입하면 에러 페이지에 떨어져 그대로 소실되므로,
   // 성공한 로드에서만 소비하고 실패 시엔 다음 로드까지 보관한다.
@@ -410,11 +162,7 @@ export default function HomeScreen() {
     if (failed) return;
     // 토큰을 먼저 심는다 — 아래 pendingUrl 이동이 최종 목적지가 되더라도
     // localStorage 저장은 유지되므로 둘 다 살릴 수 있다.
-    if (pendingAuthToken.current) {
-      const token = pendingAuthToken.current;
-      pendingAuthToken.current = null;
-      applyAuthToken(token);
-    }
+    flushPendingAuth();
     if (pendingUrl.current) {
       const url = pendingUrl.current;
       pendingUrl.current = null;
@@ -422,7 +170,7 @@ export default function HomeScreen() {
         `window.location.href = ${JSON.stringify(url)}; true;`,
       );
     }
-  }, [applyAuthToken]);
+  }, [flushPendingAuth]);
 
   return (
     <View style={styles.root}>
@@ -464,11 +212,7 @@ export default function HomeScreen() {
         />
       </SafeAreaView>
       {!firstLoadDone && !loadError && (
-        <View style={styles.loader} pointerEvents="none">
-          <Text style={styles.loadingLine1}>쇼핑 적립은,</Text>
-          <Text style={styles.loadingLine2}>Shoppinglog</Text>
-          <Image source={SPLASH_BEAR} style={styles.loadingBear} resizeMode="contain" />
-        </View>
+        <WebViewSplash />
       )}
       {(loadError || isOffline) && (
         <View style={StyleSheet.absoluteFill}>
@@ -498,51 +242,5 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
-  },
-  // 웹 스플래시(templates/partials/_splash.html)와 같은 화면.
-  // 예전엔 곰 얼굴 + '쇼핑적립은 쇼핑로그' 한 줄이라, 웹뷰가 뜨는 순간 웹 스플래시로
-  // 바뀌면서 그림·문구·배경색(#1371F9→#3182f6)이 한꺼번에 갈아끼워져 깜빡였다.
-  // 좌표는 웹과 같은 시안(393×852) 기준 %라 기기 높이가 달라도 같이 움직인다.
-  loader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: 'hidden',
-    backgroundColor: '#3182f6',
-  },
-  loadingLine1: {
-    position: 'absolute',
-    top: '24.18%',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    color: '#ffffff',
-    fontSize: 24,
-    lineHeight: 24,
-    letterSpacing: -0.48,
-  },
-  loadingLine2: {
-    position: 'absolute',
-    top: '29.23%',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    color: '#ffffff',
-    fontSize: 36,
-    lineHeight: 36,
-    // 웹은 Poppins를 지정하지만 실제로 로드하는 폰트가 없어 Pretendard로 떨어진다.
-    // 앱에 임베드된 Pretendard-Black을 쓰면 웹에서 보이는 것과 같은 글자가 된다.
-    fontFamily: 'Pretendard-Black',
-  },
-  // 시안 250×453 @ (143,364). 이미지 비율(600×1087)이 이 상자와 같아
-  // resizeMode='contain'이 웹의 object-fit:contain + left top 과 같은 결과가 된다.
-  loadingBear: {
-    position: 'absolute',
-    left: '36.39%',
-    top: '42.72%',
-    width: '63.61%',
-    height: '53.17%',
   },
 });
