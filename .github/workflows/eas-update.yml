@@ -5,10 +5,26 @@ name: EAS Update (OTA)
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npx tsc --noEmit
+      - run: npm run lint
+
   update:
     runs-on: ubuntu-latest
+    needs: validate
     # EXPO_TOKEN 시크릿이 없으면 스킵(설정 전 실패 방지)
     if: ${{ github.event_name == 'push' }}
     steps:
