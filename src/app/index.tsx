@@ -17,16 +17,50 @@ const HOME_URL = APP_ORIGIN;
 // 이 진행률을 넘기면 첫 화면은 이미 그려져 있다고 보고 로딩 오버레이를 걷는다.
 // 너무 낮으면 흰 화면이 비치고, 1.0 이면 onLoadEnd 와 다를 게 없다.
 const FIRST_PAINT_PROGRESS = 0.75;
+const LOAD_TIMEOUT_MS = 30_000;
 
 
 export default function HomeScreen() {
   const webViewRef = useRef<WebView>(null);
+  // 현재 웹뷰가 보고 있는 주소. 로그인 토큰을 어느 오리진의 localStorage 에
+  // 쓰게 되는지 판단하는 데 쓴다(applyAuthToken 참고).
+  const currentUrl = useRef(HOME_URL);
+
   const canGoBack = useRef(false);
   const isLoaded = useRef(false);
   const pendingUrl = useRef<string | null>(null);
   const lastBackPress = useRef(0);
   const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [webViewKey, setWebViewKey] = useState(0);
+  const lastLoadFailed = useRef(false);
+  const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearLoadTimer = useCallback(() => {
+    if (loadTimer.current !== null) clearTimeout(loadTimer.current);
+    loadTimer.current = null;
+  }, []);
+
+  const failLoad = useCallback(() => {
+    clearLoadTimer();
+    lastLoadFailed.current = true;
+    isLoaded.current = false;
+    setFirstLoadDone(true);
+    setLoadError(true);
+  }, [clearLoadTimer]);
+
+  const beginLoad = useCallback(() => {
+    clearLoadTimer();
+    isLoaded.current = false;
+    lastLoadFailed.current = false;
+    loadTimer.current = setTimeout(failLoad, LOAD_TIMEOUT_MS);
+  }, [clearLoadTimer, failLoad]);
+
+  // Also cover a cold start where the native WebView never emits onLoadStart.
+  useEffect(() => {
+    beginLoad();
+    return clearLoadTimer;
+  }, [beginLoad, clearLoadTimer]);
 
   const { isConnected } = useNetInfo();
   const isOffline = isConnected === false;
@@ -54,8 +88,12 @@ export default function HomeScreen() {
   const handleRetry = useCallback(() => {
     setLoadError(false);
     setFirstLoadDone(false);
-    webViewRef.current?.reload();
-  }, []);
+    canGoBack.current = false;
+    currentUrl.current = HOME_URL;
+    beginLoad();
+    // A dead Android renderer cannot be recovered by reloading its old instance.
+    setWebViewKey(key => key + 1);
+  }, [beginLoad]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
@@ -74,10 +112,6 @@ export default function HomeScreen() {
     });
     return () => sub.remove();
   }, []);
-
-  // 현재 웹뷰가 보고 있는 주소. 로그인 토큰을 어느 오리진의 localStorage 에
-  // 쓰게 되는지 판단하는 데 쓴다(applyAuthToken 참고).
-  const currentUrl = useRef(HOME_URL);
 
   // ⚠️ 아래 웹뷰 콜백들은 전부 useCallback 으로 고정한다.
   // 안드로이드의 shouldOverrideUrlLoading 은 링크를 누를 때마다 웹뷰의 UI
@@ -143,8 +177,6 @@ export default function HomeScreen() {
   // onLoadEnd 는 로드 "실패" 시에도 불린다(onError 직후). 실패한 로드에
   // 보관해둔 토큰/URL을 주입하면 에러 페이지에 떨어져 그대로 소실되므로,
   // 성공한 로드에서만 소비하고 실패 시엔 다음 로드까지 보관한다.
-  const lastLoadFailed = useRef(false);
-
   // 로딩 오버레이(파란 배경 + 곰돌이)를 걷는 시점.
   // onLoadEnd 는 이미지·광고·서드파티 스크립트까지 모든 서브리소스가 끝나야
   // 불리는데, 화면은 그보다 한참 먼저 그려져 있다. 그동안 오버레이가 덮고 있으면
@@ -155,11 +187,12 @@ export default function HomeScreen() {
   }, []);
 
   const onLoadEnd = useCallback(() => {
+    clearLoadTimer();
     setFirstLoadDone(true);
     const failed = lastLoadFailed.current;
-    lastLoadFailed.current = false;
-    isLoaded.current = true;
+    isLoaded.current = !failed;
     if (failed) return;
+    setLoadError(false);
     // 토큰을 먼저 심는다 — 아래 pendingUrl 이동이 최종 목적지가 되더라도
     // localStorage 저장은 유지되므로 둘 다 살릴 수 있다.
     flushPendingAuth();
@@ -170,30 +203,33 @@ export default function HomeScreen() {
         `window.location.href = ${JSON.stringify(url)}; true;`,
       );
     }
-  }, [flushPendingAuth]);
+  }, [clearLoadTimer, flushPendingAuth]);
 
   return (
     <View style={styles.root}>
       <SafeAreaView style={styles.container} edges={['top']}>
         <WebView
+          key={webViewKey}
           ref={webViewRef}
           source={{ uri: HOME_URL }}
           style={styles.webview}
           onNavigationStateChange={onNavigationStateChange}
           onOpenWindow={onOpenWindow}
           onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+          onLoadStart={beginLoad}
           onLoadProgress={onLoadProgress}
           onLoadEnd={onLoadEnd}
           onMessage={onMessage}
           injectedJavaScriptBeforeContentLoaded={KAKAO_BRIDGE_INJECTED_JS}
           injectedJavaScript={KAKAO_BRIDGE_INJECTED_JS}
           onError={() => {
-            lastLoadFailed.current = true;
-            setFirstLoadDone(true);
-            setLoadError(true);
+            failLoad();
             haptics.error();
           }}
-          onContentProcessDidTerminate={() => webViewRef.current?.reload()}
+          // react-native-webview emits onHttpError only for main-frame responses.
+          onHttpError={failLoad}
+          onContentProcessDidTerminate={failLoad}
+          onRenderProcessGone={failLoad}
           domStorageEnabled
           javaScriptEnabled
           allowsInlineMediaPlayback

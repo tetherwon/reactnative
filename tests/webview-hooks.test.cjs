@@ -55,6 +55,9 @@ test('native bridge keeps origin gate and numeric user IDs after extraction', as
     '@/lib/externalLinks': { APP_ORIGIN: 'https://shoppinglog.store', isAppOrigin: u => new URL(u).origin === 'https://shoppinglog.store' },
   });
   const { onMessage } = app.hook({ current: { injectJavaScript: js => scripts.push(js) } }, () => {});
+  for (const invalid of ['null', '[]', 'false', '42', '"text"', '{']) {
+    assert.doesNotThrow(() => onMessage({ nativeEvent: { url: 'https://shoppinglog.store', data: invalid } }));
+  }
   const data = JSON.stringify({ type: 'admob:showRewarded', adUnit: 'unit', userId: 123 });
   onMessage({ nativeEvent: { url: 'https://example.com', data } });
   assert.equal(ads.length, 0);
@@ -63,4 +66,20 @@ test('native bridge keeps origin gate and numeric user IDs after extraction', as
   assert.deepEqual(ads, [['unit', '123']]);
   assert.match(scripts[0], /location.origin/);
   assert.match(scripts[0], /onAdmobResult\(true\)/);
+});
+
+test('logged-out launch does not exchange credentials or inject a token', () => {
+  let exchanges = 0;
+  const scripts = [];
+  const app = mount('useWebViewAuth', {
+    'expo-router': { useLocalSearchParams: () => ({}) },
+    'expo-web-browser': {}, 'react-native': { Alert: { alert() {} } },
+    '@/lib/authGate': { exchangeOAuthCode: () => { exchanges++; } },
+    '@/lib/externalLinks': { APP_ORIGIN: 'https://shoppinglog.store', isAppOrigin: () => true },
+  });
+  const auth = app.hook({ current: { injectJavaScript: js => scripts.push(js) } }, { current: true }, { current: 'https://shoppinglog.store' });
+  app.effects.forEach(fn => fn());
+  auth.flushPendingAuth();
+  assert.equal(exchanges, 0);
+  assert.equal(scripts.length, 0);
 });

@@ -2,6 +2,12 @@
 // EAS 환경변수(KAKAO_NATIVE_APP_KEY)로 주입한다. (app.json 대신 app.config.js 사용 이유)
 const KAKAO_NATIVE_APP_KEY = process.env.KAKAO_NATIVE_APP_KEY || '';
 
+// Kakao initializes when its native module is created, before a login click.
+// Keep local exports usable, but never produce a native build with an empty key.
+if (['ios', 'android'].includes(process.env.EAS_BUILD_PLATFORM) && !KAKAO_NATIVE_APP_KEY.trim()) {
+  throw new Error('KAKAO_NATIVE_APP_KEY 가 없습니다. EAS 빌드 환경에 카카오 네이티브 앱 키를 등록하세요.');
+}
+
 // AdMob 앱 ID (ca-app-pub-XXXX~YYYY, AdMob 콘솔 → 앱 설정).
 // AdMob 앱 ID는 비밀값이 아니라 어차피 빌드된 앱에 그대로 박히는 공개값이므로
 // 여기에 직접 등록한다(env로 덮어쓰기 가능). 이렇게 하면 EAS 환경변수를 깜빡
@@ -17,7 +23,7 @@ const ADMOB_ANDROID_APP_ID =
   process.env.ADMOB_ANDROID_APP_ID || 'ca-app-pub-1856287061134936~8519744143';
 const ADMOB_IOS_APP_ID = process.env.ADMOB_IOS_APP_ID || '';
 
-if (process.env.EAS_BUILD_PLATFORM === 'ios' && !ADMOB_IOS_APP_ID) {
+if (process.env.EAS_BUILD_PLATFORM === 'ios' && !ADMOB_IOS_APP_ID.trim()) {
   throw new Error(
     'ADMOB_IOS_APP_ID 가 없습니다. AdMob 콘솔에서 iOS 앱(번들 ID store.shoppinglog.app)을 ' +
       '만들어 앱 ID(ca-app-pub-…~…)를 받은 뒤 EAS 환경변수로 등록하세요: ' +

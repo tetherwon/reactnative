@@ -92,6 +92,7 @@ export function useNativeBridge(webViewRef: RefObject<WebView | null>, goTo: (ur
       } catch {
         return;
       }
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return;
 
       if (data.type === 'push:getToken') {
         sendPushTokenToWeb();
