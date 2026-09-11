@@ -1,9 +1,24 @@
-// 카카오 네이티브 앱 키는 퍼블릭 레포에 평문으로 남기지 않기 위해
-// EAS 환경변수(KAKAO_NATIVE_APP_KEY)로 주입한다. (app.json 대신 app.config.js 사용 이유)
-const KAKAO_NATIVE_APP_KEY = process.env.KAKAO_NATIVE_APP_KEY || '';
+// 카카오 네이티브 앱 키. AdMob 앱 ID와 같은 성격의 '공개값'이라 여기에 직접 둔다.
+//
+// 이 값은 어차피 빌드 결과물에 평문으로 박힌다 — Android 는 strings.xml·매니페스트
+// meta-data, iOS 는 Info.plist 와 URL scheme(kakao{앱키}). APK 를 풀면 누구나
+// 꺼낼 수 있으므로 환경변수로 주입한다고 해서 덜 노출되는 게 아니다.
+// 실제 방어는 키가 아니라 콘솔에 등록된 '패키지명 + 키 해시'(iOS 는 번들 ID)가
+// 맡는다 — 키만 복사해 다른 앱에 넣어도 키 해시가 달라 로그인이 거부된다.
+// ⚠️ 진짜 비밀은 REST API 키·client_secret·Admin 키다. 그건 서버 전용이고
+//    절대 이 파일에 오면 안 된다.
+//
+// env 로 덮어쓸 수는 있게 두되 폴백을 둔다. 예전엔 폴백 없이 env 만 봤는데,
+// 카카오 SDK 는 로그인 버튼이 아니라 네이티브 모듈이 만들어질 때(=앱 시작 시)
+// 초기화되므로 키가 빈 채로 빌드되면 아이콘을 누르는 즉시 앱이 죽는다.
+// EAS 환경변수 하나 빠뜨린 것이 '설치는 되는데 켜자마자 튕기는 APK'가 됐다.
+// trim 후 판단한다 — EAS 에 공백만 든 값이 들어가 있어도 폴백이 이겨야 한다.
+// ('' 는 falsy 라 저절로 넘어가지만 '  ' 는 truthy 여서 그대로 빌드에 실린다)
+const KAKAO_NATIVE_APP_KEY =
+  (process.env.KAKAO_NATIVE_APP_KEY || '').trim() || '6317baf1a08baaede008a929e4f1499f';
 
-// Kakao initializes when its native module is created, before a login click.
-// Keep local exports usable, but never produce a native build with an empty key.
+// 폴백이 있으니 정상적으로는 걸릴 일이 없다. 누가 폴백을 지우거나 빈 값으로
+// 덮어썼을 때, 켜자마자 죽는 바이너리가 나가는 걸 막는 최후의 안전망이다.
 if (['ios', 'android'].includes(process.env.EAS_BUILD_PLATFORM) && !KAKAO_NATIVE_APP_KEY.trim()) {
   throw new Error('KAKAO_NATIVE_APP_KEY 가 없습니다. EAS 빌드 환경에 카카오 네이티브 앱 키를 등록하세요.');
 }
