@@ -134,3 +134,34 @@ test('pending ATT postpones biometrics; after ATT completes the guest can unlock
     assert.equal(app.render().props.children[1], false);
   } finally { app.cleanup(); }
 });
+
+// 복구 불가 실패(생체 인증 영구 잠금 등)는 잠금을 유지하면 앱에 영영 못 들어간다.
+// 잠금은 부가 기능이므로 통과시켜야 한다(fail-open).
+test('unrecoverable biometric failures release the lock instead of stranding the app', async () => {
+  for (const error of ['lockout_permanent', 'not_available', 'not_enrolled',
+    'passcode_not_set', 'invalid_context', 'unknown']) {
+    const app = mountGate({ result: { success: false, error } });
+    try {
+      await app.settle();
+      assert.equal(app.render().props.children[1], false, error + ' should unlock');
+      assert.equal(app.render().props.children[0], app.guest);
+    } finally { app.cleanup(); }
+  }
+});
+
+test('a throwing native authenticate call releases the lock', async () => {
+  const app = mountGate({ result: null });
+  try {
+    await app.settle();
+    assert.equal(app.render().props.children[1], false);
+  } finally { app.cleanup(); }
+});
+
+test('a rejected ATT request still lets biometrics run', async () => {
+  const app = mountGate({ tracking: () => Promise.reject(new Error('ATT failed')) });
+  try {
+    await app.settle();
+    assert.equal(app.calls.authenticate, 1);
+    assert.equal(app.render().props.children[1], false);
+  } finally { app.cleanup(); }
+});

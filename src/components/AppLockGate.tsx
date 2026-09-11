@@ -11,6 +11,20 @@ import { withNativePrompt } from '@/lib/nativePrompts';
 // 잠깐 알림 확인 등으로 전환했을 때 매번 인증을 요구하지 않기 위함.
 const RELOCK_AFTER_MS = 30_000;
 
+// 다시 시도해도 성공할 수 없는 인증 실패들. 이때도 잠금을 유지하면 사용자는
+// 앱에 영영 못 들어간다 — 특히 lockout_permanent(연속 실패로 OS가 생체 인증을
+// 잠가버린 상태)는 기기 설정에서 암호를 다시 넣기 전까지 풀리지 않으므로
+// 재설치 말고는 탈출구가 없다. 앱 잠금은 부가 기능이니 판단이 불가능하면
+// 통과시킨다(fail-open). 사용자가 스스로 취소한 user_cancel 은 잠금을 유지한다.
+const UNRECOVERABLE_AUTH_ERRORS = new Set([
+  'not_available',
+  'not_enrolled',
+  'passcode_not_set',
+  'lockout_permanent',
+  'invalid_context',
+  'unknown',
+]);
+
 type LockState = 'checking' | 'locked' | 'unlocked';
 
 /**
@@ -34,11 +48,20 @@ export default function AppLockGate({ children }: { children: React.ReactNode })
   const backgroundedAt = useRef<number | null>(null);
   const authInFlight = useRef(false);
 
+  // 더 이상 잠글 수 없다고 판단되면 잠금 기능 자체를 끄고 통과시킨다.
+  // biometricEnabled 를 내려야 백그라운드 복귀 때 다시 잠기지 않는다.
+  const giveUpLock = useCallback(() => {
+    biometricEnabled.current = false;
+    setState('unlocked');
+  }, []);
+
   const authenticate = useCallback(async () => {
     if (authInFlight.current) return;
     authInFlight.current = true;
     try {
-      await ensureTrackingPermission();
+      // ATT가 실패하거나 끝나지 않아도 잠금 해제까지 막히면 안 된다 —
+      // 여기서 걸리면 '잠금 해제' 버튼도 authInFlight 가드에 막혀 무반응이 된다.
+      await ensureTrackingPermission().catch(() => false);
       const result = await withNativePrompt(() => LocalAuthentication.authenticateAsync({
         promptMessage: '쇼핑로그 잠금 해제',
         cancelLabel: '취소',
@@ -46,15 +69,18 @@ export default function AppLockGate({ children }: { children: React.ReactNode })
       if (result.success) {
         haptics.success();
         setState('unlocked');
+      } else if (UNRECOVERABLE_AUTH_ERRORS.has(String(result.error ?? ''))) {
+        giveUpLock();
       } else {
         setState('locked');
       }
     } catch {
-      setState('locked');
+      // 네이티브 호출 자체가 던진 경우(모듈 없음·시간 초과 등)도 복구 불가다.
+      giveUpLock();
     } finally {
       authInFlight.current = false;
     }
-  }, []);
+  }, [giveUpLock]);
 
   // 최초 1회: 생체 인증 사용 가능 여부 확인 후, 가능하면 잠그고 인증 시작.
   useEffect(() => {
